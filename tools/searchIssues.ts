@@ -26,11 +26,11 @@ export const searchIssuesDefinition = {
       },
       maxResults: {
         type: "number",
-        description: "Optional maximum number of results to return (default: 20, max: 100)",
+        description: "Optional maximum number of results to return per page (default: 50, max: 100)",
       },
-      startAt: {
-        type: "number",
-        description: "Optional pagination offset, specifies the index of the first issue to return (0-based, default: 0)",
+      nextPageToken: {
+        type: "string",
+        description: "Optional pagination token to fetch the next page of results. Use the token from the previous response.",
       },
     },
   },
@@ -44,19 +44,14 @@ export async function searchIssuesHandler(
     issueType?: string;
     statusCategory?: string;
     maxResults?: number;
-    startAt?: number;
+    nextPageToken?: string;
   }
 ): Promise<McpResponse> {
-  const { jql: customJql, projectKey, issueType, statusCategory, maxResults = 20, startAt = 0 } = args || {};
+  const { jql: customJql, projectKey, issueType, statusCategory, maxResults = 50, nextPageToken } = args || {};
 
   const validatedMaxResults = Math.min(Math.max(1, maxResults), 100);
   if (validatedMaxResults !== maxResults) {
     console.error(`Adjusted maxResults from ${maxResults} to ${validatedMaxResults} (valid range: 1-100)`);
-  }
-
-  const validatedStartAt = Math.max(0, startAt);
-  if (validatedStartAt !== startAt) {
-    console.error(`Adjusted startAt from ${startAt} to ${validatedStartAt} (must be non-negative)`);
   }
 
   let jql: string;
@@ -84,35 +79,32 @@ export async function searchIssuesHandler(
   console.error(`Executing JQL query: ${jql}`);
 
   try {
-    const issues = await jira.issueSearch.searchForIssuesUsingJql({
+    const searchParams: any = {
       jql,
       maxResults: validatedMaxResults,
-      startAt: validatedStartAt,
       fields: ["summary", "status", "issuetype", "assignee", "updated", "statusCategory"],
-    });
- 
+    };
+
+    if (nextPageToken) {
+      searchParams.nextPageToken = nextPageToken;
+    }
+
+    const result = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearch(searchParams);
+
     const baseHost = (process.env.JIRA_HOST || "").replace(/\/+$/, "");
     const urlPattern = baseHost ? `${baseHost}/browse/{ISSUE_KEY}` : "{issue.self}";
-    const formattedIssues = (issues.issues || []).map((issue: any) => {
+    const formattedIssues = (result.issues || []).map((issue: any) => {
       const statusCat = issue.fields.status?.statusCategory?.name || "Unknown";
       const updated = issue.fields.updated ? new Date(issue.fields.updated).toLocaleString() : "Unknown";
       return `${issue.key}: ${issue.fields.summary || "No summary"} [${issue.fields.issuetype?.name || "Unknown type"}, ${issue.fields.status?.name || "No status"} (${statusCat}), Assignee: ${issue.fields.assignee?.displayName || "Unassigned"}, Updated: ${updated}]`;
     });
 
-    const totalResults = issues.total || 0;
-    const startIndex = validatedStartAt + 1;
-    const endIndex = Math.min(validatedStartAt + validatedMaxResults, totalResults);
-
-    const paginationInfo = totalResults > 0 ? `Showing results ${startIndex}-${endIndex} of ${totalResults}` : `No results found`;
+    const resultsCount = formattedIssues.length;
+    const paginationInfo = resultsCount > 0 ? `Found ${resultsCount} issue${resultsCount === 1 ? '' : 's'} on this page` : `No results found`;
 
     let navigationHints = "";
-    if (validatedStartAt > 0) {
-      const prevStartAt = Math.max(0, validatedStartAt - validatedMaxResults);
-      navigationHints += `\nPrevious page: Use startAt=${prevStartAt}`;
-    }
-    if (endIndex < totalResults) {
-      const nextStartAt = validatedStartAt + validatedMaxResults;
-      navigationHints += `\nNext page: Use startAt=${nextStartAt}`;
+    if (result.nextPageToken) {
+      navigationHints += `\n\nMore results available. To fetch the next page, use: nextPageToken="${result.nextPageToken}"`;
     }
 
     return {

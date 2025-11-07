@@ -103,7 +103,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         issueType?: string;
         statusCategory?: string;
         maxResults?: number;
-        startAt?: number;
+        nextPageToken?: string;
       });
     }
     
