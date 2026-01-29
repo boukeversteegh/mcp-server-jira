@@ -1,5 +1,6 @@
 import { Version3Client } from "jira.js";
-import type { McpResponse } from "../utils.js";
+import type { DescriptionFormat, McpResponse } from "../utils.js";
+import { buildADF } from "../utils.js";
 import { createSubTicketCore } from "./createSubTicket.js";
 
 export const createTicketDefinition = {
@@ -11,6 +12,12 @@ export const createTicketDefinition = {
       projectKey: { type: "string" },
       summary: { type: "string" },
       description: { type: "string" },
+      descriptionFormat: {
+        type: "string",
+        enum: ["plain", "wiki", "markdown", "adf"],
+        description:
+          "Format of the description text: 'plain' (default) for simple text, 'wiki' for Jira wiki markup, 'markdown' for Markdown, 'adf' for raw ADF JSON"
+      },
       issueType: {
         type: "string",
         description: "The name of the issue type (e.g., 'Task', 'Bug', etc.)"
@@ -37,17 +44,18 @@ export async function createTicketHandler(
     projectKey: string;
     summary: string;
     description?: string;
+    descriptionFormat?: DescriptionFormat;
     issueType?: string;
     parentKey?: string;
     fields?: Record<string, any>;
   }
 ): Promise<McpResponse> {
-  const { projectKey, summary, description = "", issueType = "Task", parentKey, fields = {} } = args;
+  const { projectKey, summary, description = "", descriptionFormat = "plain", issueType = "Task", parentKey, fields = {} } = args;
 
   try {
     // If parentKey is provided, reuse sub-ticket creation logic
     if (parentKey) {
-      return await createSubTicketCore(jira, { parentKey, summary, description, issueType });
+      return await createSubTicketCore(jira, { parentKey, summary, description, descriptionFormat, issueType });
     }
 
     // Get available issue types for the project
@@ -184,21 +192,7 @@ export async function createTicketHandler(
     };
 
     if (description) {
-      issueFields.description = {
-        type: "doc",
-        version: 1,
-        content: [
-          {
-            type: "paragraph",
-            content: [
-              {
-                type: "text",
-                text: description
-              }
-            ]
-          }
-        ]
-      };
+      issueFields.description = buildADF(description, descriptionFormat);
     }
 
     const createIssuePayload: any = { fields: issueFields };

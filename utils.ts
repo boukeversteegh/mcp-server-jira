@@ -1,3 +1,12 @@
+import { WikiMarkupTransformer } from "@atlaskit/editor-wikimarkup-transformer";
+// @ts-ignore - known issue with defaultSchema export path in ESM
+import { defaultSchema } from "@atlaskit/adf-schema/dist/cjs/schema/default-schema.js";
+import { markdownToAdf } from "marklassian";
+
+const wikiTransformer = new WikiMarkupTransformer(defaultSchema);
+
+export type DescriptionFormat = "plain" | "wiki" | "markdown" | "adf";
+
 export type McpText = { type: "text"; text: string };
 export type McpResponse = {
   content: McpText[];
@@ -51,16 +60,66 @@ export async function withJiraError(
   }
 }
 
-// Minimal ADF builder for plain text paragraphs
-export function buildADF(text: string) {
-  return {
-    type: "doc",
-    version: 1,
-    content: [
-      {
-        type: "paragraph",
-        content: [{ type: "text", text }],
-      },
-    ],
-  };
+/**
+ * Recursively remove null values from an object (Jira API rejects nulls in ADF)
+ */
+function stripNulls(obj: any): any {
+  if (Array.isArray(obj)) {
+    return obj.map(stripNulls);
+  }
+  if (obj !== null && typeof obj === "object") {
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== null) {
+        result[key] = stripNulls(value);
+      }
+    }
+    return result;
+  }
+  return obj;
+}
+
+/**
+ * Build ADF (Atlassian Document Format) from text.
+ *
+ * @param text - The text content to convert
+ * @param format - The format of the input text:
+ *   - "plain" (default): Wraps text in a single paragraph
+ *   - "wiki": Parses Jira wiki markup (h2., {code}, *bold*, etc.)
+ *   - "markdown": Parses Markdown (## headings, **bold**, ```code```, etc.)
+ *   - "adf": Expects text to be JSON string of ADF, parses and returns it
+ */
+export function buildADF(text: string, format: DescriptionFormat = "plain"): object {
+  switch (format) {
+    case "wiki": {
+      const pmNode = wikiTransformer.parse(text);
+      const adf = pmNode.toJSON();
+      // Ensure version is set and strip nulls (Jira rejects them)
+      return stripNulls({ ...adf, version: 1 });
+    }
+    case "markdown": {
+      const adf = markdownToAdf(text);
+      // Ensure version is set
+      if (!adf.version) adf.version = 1;
+      return adf;
+    }
+    case "adf": {
+      const parsed = JSON.parse(text);
+      // Ensure version is set
+      if (!parsed.version) parsed.version = 1;
+      return parsed;
+    }
+    case "plain":
+    default:
+      return {
+        type: "doc",
+        version: 1,
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text }],
+          },
+        ],
+      };
+  }
 }

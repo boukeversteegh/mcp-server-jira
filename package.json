@@ -18,9 +18,12 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@atlaskit/adf-schema": "^51.5.7",
+    "@atlaskit/editor-wikimarkup-transformer": "^11.20.4",
     "@modelcontextprotocol/sdk": "^1.0.3",
     "@types/node": "^22.10.2",
     "jira.js": "^5.2.2",
+    "marklassian": "^1.1.0",
     "typescript": "^5.7.2"
   },
   "devDependencies": {

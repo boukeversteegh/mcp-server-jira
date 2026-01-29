@@ -120,7 +120,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     case "update-description": {
-      return await updateDescriptionHandler(jira, args as { issueKey: string; description: string });
+      return await updateDescriptionHandler(jira, args as { issueKey: string; description: string; descriptionFormat?: "plain" | "wiki" | "markdown" | "adf" });
     }
 
     case "list-child-issues": {
@@ -129,7 +129,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 
     case "create-sub-ticket": {
-      return await createSubTicketHandler(jira, args as { parentKey: string; summary: string; description?: string; issueType?: string });
+      return await createSubTicketHandler(jira, args as { parentKey: string; summary: string; description?: string; descriptionFormat?: "plain" | "wiki" | "markdown" | "adf"; issueType?: string });
     }
 
     case "link-issues": {
@@ -141,6 +141,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         projectKey: string;
         summary: string;
         description?: string;
+        descriptionFormat?: "plain" | "wiki" | "markdown" | "adf";
         issueType?: string;
         parentKey?: string;
         fields?: Record<string, any>;

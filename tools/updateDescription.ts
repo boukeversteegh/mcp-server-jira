@@ -1,6 +1,6 @@
 import { Version3Client } from "jira.js";
-import type { McpResponse } from "../utils.js";
-import { buildADF } from "../utils.js";
+import type { DescriptionFormat, McpResponse } from "../utils.js";
+import { buildADF, withJiraError, respond } from "../utils.js";
 
 export const updateDescriptionDefinition = {
   name: "update-description",
@@ -9,7 +9,13 @@ export const updateDescriptionDefinition = {
     type: "object",
     properties: {
       issueKey: { type: "string" },
-      description: { type: "string" }
+      description: { type: "string" },
+      descriptionFormat: {
+        type: "string",
+        enum: ["plain", "wiki", "markdown", "adf"],
+        description:
+          "Format of the description text: 'plain' (default) for simple text, 'wiki' for Jira wiki markup (h2., {code}, *bold*, etc.), 'markdown' for Markdown (## headings, **bold**, ```code```), 'adf' for raw Atlassian Document Format JSON"
+      }
     },
     required: ["issueKey", "description"]
   }
@@ -17,19 +23,18 @@ export const updateDescriptionDefinition = {
 
 export async function updateDescriptionHandler(
   jira: Version3Client,
-  args: { issueKey: string; description: string }
+  args: { issueKey: string; description: string; descriptionFormat?: DescriptionFormat }
 ): Promise<McpResponse> {
-  const { issueKey, description } = args;
+  const { issueKey, description, descriptionFormat = "plain" } = args;
 
-  await jira.issues.editIssue({
-    issueIdOrKey: issueKey,
-    fields: {
-      description: buildADF(description)
-    }
-  });
+  return withJiraError(async () => {
+    await jira.issues.editIssue({
+      issueIdOrKey: issueKey,
+      fields: {
+        description: buildADF(description, descriptionFormat)
+      }
+    });
 
-  return {
-    content: [{ type: "text", text: `Successfully updated description of ${issueKey}` }],
-    _meta: {}
-  };
+    return respond(`Successfully updated description of ${issueKey}`);
+  }, `Error updating description of ${issueKey}`);
 }

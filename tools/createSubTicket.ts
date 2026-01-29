@@ -1,5 +1,6 @@
 import { Version3Client } from "jira.js";
-import type { McpResponse } from "../utils.js";
+import type { DescriptionFormat, McpResponse } from "../utils.js";
+import { buildADF } from "../utils.js";
 
 export const createSubTicketDefinition = {
   name: "create-sub-ticket",
@@ -10,6 +11,12 @@ export const createSubTicketDefinition = {
       parentKey: { type: "string" },
       summary: { type: "string" },
       description: { type: "string" },
+      descriptionFormat: {
+        type: "string",
+        enum: ["plain", "wiki", "markdown", "adf"],
+        description:
+          "Format of the description text: 'plain' (default) for simple text, 'wiki' for Jira wiki markup, 'markdown' for Markdown, 'adf' for raw ADF JSON"
+      },
       issueType: {
         type: "string",
         description: "The name of the sub-task issue type (e.g., 'Sub-task')"
@@ -25,10 +32,11 @@ export async function createSubTicketCore(
     parentKey: string;
     summary: string;
     description?: string;
+    descriptionFormat?: DescriptionFormat;
     issueType?: string;
   }
 ): Promise<McpResponse> {
-  const { parentKey, summary, description = "", issueType = "Sub-task" } = args;
+  const { parentKey, summary, description = "", descriptionFormat = "plain", issueType = "Sub-task" } = args;
 
   try {
     const parentIssue = await jira.issues.getIssue({
@@ -59,20 +67,7 @@ export async function createSubTicketCore(
         parent: { key: parentKey },
         project: { id: parentIssue.fields.project.id },
         issuetype: { name: finalIssueType },
-        ...(description
-          ? {
-              description: {
-                type: "doc",
-                version: 1,
-                content: [
-                  {
-                    type: "paragraph",
-                    content: [{ type: "text", text: description }],
-                  },
-                ],
-              },
-            }
-          : {}),
+        ...(description ? { description: buildADF(description, descriptionFormat) } : {}),
       },
     };
 
@@ -101,6 +96,7 @@ export async function createSubTicketHandler(
     parentKey: string;
     summary: string;
     description?: string;
+    descriptionFormat?: DescriptionFormat;
     issueType?: string;
   }
 ): Promise<McpResponse> {
