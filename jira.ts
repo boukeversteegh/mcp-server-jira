@@ -116,7 +116,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     case "add-comment": {
-      return await addCommentHandler(jira, args as { issueKey: string; comment: string });
+      return await addCommentHandler(jira, args as { issueKey: string; comment: string; commentFormat?: "plain" | "wiki" | "markdown" | "adf" });
     }
 
     case "update-description": {

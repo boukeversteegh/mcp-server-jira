@@ -1,5 +1,6 @@
 import { Version3Client } from "jira.js";
-import type { McpResponse } from "../utils.js";
+import type { DescriptionFormat, McpResponse } from "../utils.js";
+import { buildADF, withJiraError, respond } from "../utils.js";
 
 export const addCommentDefinition = {
   name: "add-comment",
@@ -9,6 +10,12 @@ export const addCommentDefinition = {
     properties: {
       issueKey: { type: "string" },
       comment: { type: "string" },
+      commentFormat: {
+        type: "string",
+        enum: ["plain", "wiki", "markdown", "adf"],
+        description:
+          "Format of the comment text: 'plain' (default) for simple text, 'wiki' for Jira wiki markup, 'markdown' for Markdown, 'adf' for raw ADF JSON"
+      }
     },
     required: ["issueKey", "comment"],
   },
@@ -16,22 +23,16 @@ export const addCommentDefinition = {
 
 export async function addCommentHandler(
   jira: Version3Client,
-  args: { issueKey: string; comment: string }
+  args: { issueKey: string; comment: string; commentFormat?: DescriptionFormat }
 ): Promise<McpResponse> {
-  const { issueKey, comment } = args;
+  const { issueKey, comment, commentFormat = "plain" } = args;
 
-  await jira.issueComments.addComment({
-    issueIdOrKey: issueKey,
-    comment,
-  });
+  return withJiraError(async () => {
+    await jira.issueComments.addComment({
+      issueIdOrKey: issueKey,
+      comment: buildADF(comment, commentFormat) as any,
+    });
 
-  return {
-    content: [
-      {
-        type: "text",
-        text: `Successfully added comment to ${issueKey}`,
-      },
-    ],
-    _meta: {},
-  };
+    return respond(`Successfully added comment to ${issueKey}`);
+  }, `Error adding comment to ${issueKey}`);
 }
