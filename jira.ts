@@ -17,8 +17,9 @@ import { listIssueFieldsDefinition, listIssueFieldsHandler } from "./tools/listI
 import { transitionIssuesDefinition, transitionIssuesHandler } from "./tools/transitionIssues.js";
 import { listIssueTransitionsDefinition, listIssueTransitionsHandler } from "./tools/listIssueTransitions.js";
 import { assignIssueDefinition, assignIssueHandler } from "./tools/assignIssue.js";
-import { addLabelsDefinition, addLabelsHandler } from "./tools/addLabels.js";
+import { labelsDefinition, labelsHandler } from "./tools/labels.js";
 import { linkIssuesDefinition, linkIssuesHandler } from "./tools/linkTickets.js";
+import { unlinkIssuesDefinition, unlinkIssuesHandler } from "./tools/unlinkIssues.js";
 
 // Map to store custom field information (name to ID mapping)
 const customFieldsMap = new Map<string, string>();
@@ -71,8 +72,9 @@ const server = new Server(
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     searchIssuesDefinition,
-    addLabelsDefinition,
+    labelsDefinition,
     linkIssuesDefinition,
+    unlinkIssuesDefinition,
     listSprintTicketsDefinition,
     getTicketDetailsDefinition,
     addCommentDefinition,
@@ -156,8 +158,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return await listIssueFieldsHandler(jira, customFieldsMap, args as { includeCustomOnly?: boolean });
     }
 
-    case "add-labels": {
-      return await addLabelsHandler(jira, args as { issueKeys: string[]; labels: string[] });
+    case "labels": {
+      return await labelsHandler(jira, args as { issueKeys: string[]; labels: string[]; mode?: "add" | "remove" | "set" });
+    }
+
+    case "unlink-issues": {
+      return await unlinkIssuesHandler(jira, args as { issueKeys: string[]; targetKeys?: string[]; linkType?: string });
     }
 
     case "transition-issues": {
