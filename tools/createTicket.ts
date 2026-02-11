@@ -11,7 +11,10 @@ export const createTicketDefinition = {
     properties: {
       projectKey: { type: "string" },
       summary: { type: "string" },
-      description: { type: "string" },
+      description: {
+        type: "string",
+        description: "Description text. Use literal newlines (JSON \\n) for line breaks, not escaped backslashes."
+      },
       descriptionFormat: {
         type: "string",
         enum: ["plain", "wiki", "markdown", "adf"],

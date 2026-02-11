@@ -9,7 +9,10 @@ export const addCommentDefinition = {
     type: "object",
     properties: {
       issueKey: { type: "string" },
-      comment: { type: "string" },
+      comment: {
+        type: "string",
+        description: "Comment text. Use literal newlines (JSON \\n) for line breaks, not escaped backslashes."
+      },
       commentFormat: {
         type: "string",
         enum: ["plain", "wiki", "markdown", "adf"],

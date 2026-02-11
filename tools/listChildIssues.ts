@@ -20,7 +20,7 @@ export async function listChildIssuesHandler(
   const { parentKey } = args;
 
   const jql = `parent = ${parentKey} ORDER BY created ASC`;
-  const issues = await jira.issueSearch.searchForIssuesUsingJql({
+  const issues = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearch({
     jql,
     fields: ["summary", "status", "assignee", "issuetype"],
   });

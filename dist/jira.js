@@ -17,8 +17,9 @@ import { listIssueFieldsDefinition, listIssueFieldsHandler } from "./tools/listI
 import { transitionIssuesDefinition, transitionIssuesHandler } from "./tools/transitionIssues.js";
 import { listIssueTransitionsDefinition, listIssueTransitionsHandler } from "./tools/listIssueTransitions.js";
 import { assignIssueDefinition, assignIssueHandler } from "./tools/assignIssue.js";
-import { addLabelsDefinition, addLabelsHandler } from "./tools/addLabels.js";
+import { labelsDefinition, labelsHandler } from "./tools/labels.js";
 import { linkIssuesDefinition, linkIssuesHandler } from "./tools/linkTickets.js";
+import { unlinkIssuesDefinition, unlinkIssuesHandler } from "./tools/unlinkIssues.js";
 // Map to store custom field information (name to ID mapping)
 const customFieldsMap = new Map();
 const { JIRA_HOST, JIRA_EMAIL, JIRA_API_TOKEN } = process.env;
@@ -58,8 +59,9 @@ const server = new Server({ name: "jira-server", version: "1.0.0" }, { capabilit
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
         searchIssuesDefinition,
-        addLabelsDefinition,
+        labelsDefinition,
         linkIssuesDefinition,
+        unlinkIssuesDefinition,
         listSprintTicketsDefinition,
         getTicketDetailsDefinition,
         addCommentDefinition,
@@ -84,7 +86,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             return await searchIssuesHandler(jira, args);
         }
         case "list-sprint-tickets": {
-            return await listSprintTicketsHandler(jira, args);
+            return await listSprintTicketsHandler(jira, customFieldsMap, args);
         }
         case "get-ticket-details": {
             return await getTicketDetailsHandler(jira, customFieldsMap, args);
@@ -113,8 +115,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         case "list-issue-fields": {
             return await listIssueFieldsHandler(jira, customFieldsMap, args);
         }
-        case "add-labels": {
-            return await addLabelsHandler(jira, args);
+        case "labels": {
+            return await labelsHandler(jira, args);
+        }
+        case "unlink-issues": {
+            return await unlinkIssuesHandler(jira, args);
         }
         case "transition-issues": {
             return await transitionIssuesHandler(jira, args);

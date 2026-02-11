@@ -110,7 +110,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     
     case "list-sprint-tickets": {
-      return await listSprintTicketsHandler(jira, args as { projectKey: string });
+      return await listSprintTicketsHandler(jira, customFieldsMap, args as { projectKey: string; includeOpen?: boolean; includeFuture?: boolean });
     }
 
     case "get-ticket-details": {
