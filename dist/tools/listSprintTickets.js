@@ -72,10 +72,11 @@ export async function listSprintTicketsHandler(jira, customFieldsMap, args) {
             : "";
         const stateLabel = sprint.state ? ` [${sprint.state}]` : "";
         const lines = issues.map((issue) => `  ${issue.key}: ${issue.fields.summary || "No summary"} (${issue.fields.status?.name || "No status"}) [Assignee: ${issue.fields.assignee?.displayName || "Unassigned"}]`);
-        return `## ${sprint.name}${dateRange}${stateLabel}\n${lines.join("\n")}`;
+        return `## ${sprint.name} (id: ${sprint.id})${dateRange}${stateLabel}\n${lines.join("\n")}`;
     });
+    const header = `Sprint field: ${sprintFieldId}\nTo move a ticket to a sprint, use update-issues with fields: {"${sprintFieldId}": <sprint-id>}\nURL pattern: ${urlPattern}`;
     const text = sections.length > 0
-        ? `URL pattern: ${urlPattern}\n\n${sections.join("\n\n")}`
+        ? `${header}\n\n${sections.join("\n\n")}`
         : "No issues found";
     return { content: [{ type: "text", text }], _meta: {} };
 }
