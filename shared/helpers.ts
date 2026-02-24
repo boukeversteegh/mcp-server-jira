@@ -1,3 +1,29 @@
+function extractInlineNodeText(node: any): string {
+  if (!node) return "";
+
+  switch (node.type) {
+    case "text": {
+      let text = node.text || "";
+      if (node.marks) {
+        for (const mark of node.marks) {
+          if (mark.type === "strike") text = `~~${text}~~`;
+        }
+      }
+      return text;
+    }
+    case "mention":
+      return node.attrs?.text || "@unknown";
+    case "emoji":
+      return node.attrs?.shortName || "";
+    case "hardBreak":
+      return "\n";
+    case "inlineCard":
+      return node.attrs?.url || "";
+    default:
+      return node.text || "";
+  }
+}
+
 export function extractTextFromADF(node: any, depth: number = 0): string {
   if (!node) return "No description";
 
@@ -10,11 +36,11 @@ export function extractTextFromADF(node: any, depth: number = 0): string {
 
   switch (node.type) {
     case "heading":
-      result += `${indent}${node.content?.[0]?.text || ""}\n`;
+      result += `${indent}${node.content?.map((c: any) => extractInlineNodeText(c)).join("") || ""}\n`;
       break;
     case "paragraph":
       if (node.content) {
-        const paragraphText = node.content.map((c: any) => c.text || "").join("").trim();
+        const paragraphText = node.content.map((c: any) => extractInlineNodeText(c)).join("").trim();
         if (paragraphText) result += `${indent}${paragraphText}\n`;
       }
       break;
