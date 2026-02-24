@@ -52,9 +52,11 @@ export async function createSubTicketCore(jira, args) {
                 ...(description ? { description: buildADF(description, descriptionFormat) } : {}),
             },
         };
-        await jira.issues.createIssue(createIssuePayload);
+        const created = await jira.issues.createIssue(createIssuePayload);
+        const { key, self } = created;
+        const urlText = self ? `\nURL: ${self.replace(/\/rest\/api\/3\/issue\/\w+$/, `/browse/${key}`)}` : "";
         return {
-            content: [{ type: "text", text: `🤖 Sub-ticket creation request sent for parent ${parentKey}` }],
+            content: [{ type: "text", text: `Created ${key} under ${parentKey}${urlText}` }],
             _meta: {},
         };
     }

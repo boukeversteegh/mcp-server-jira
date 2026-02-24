@@ -160,17 +160,19 @@ export async function createTicketHandler(jira, customFieldsMap, args) {
         }
         const createIssuePayload = { fields: issueFields };
         console.error(`Create issue payload: ${JSON.stringify(createIssuePayload)}`);
-        await jira.issues.createIssue(createIssuePayload);
+        const created = await jira.issues.createIssue(createIssuePayload);
         // Format the field mappings for the response
         const fieldTexts = Object.entries(fieldMappings).map(([name, id]) => {
             return name === id ? name : `${name} (${id})`;
         });
         const additionalFieldsText = fieldTexts.length > 0 ? ` with additional fields: ${fieldTexts.join(", ")}` : "";
+        const { key, self } = created;
+        const urlText = self ? `\nURL: ${self.replace(/\/rest\/api\/3\/issue\/\w+$/, `/browse/${key}`)}` : "";
         return {
             content: [
                 {
                     type: "text",
-                    text: `🤖 Issue creation request sent for project ${projectKey}${additionalFieldsText}`
+                    text: `Created ${key} in project ${projectKey}${additionalFieldsText}${urlText}`
                 }
             ],
             _meta: {}
