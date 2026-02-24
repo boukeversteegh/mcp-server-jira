@@ -1,6 +1,4 @@
 node_modules
-dist
-dist/.tsbuildinfo
 .env
 .DS_Store
 .idea
