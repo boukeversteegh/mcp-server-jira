@@ -1,75 +1,275 @@
-function extractInlineNodeText(node: any): string {
+// ── Inline helpers ────────────────────────────────────────────────────────────
+
+function applyMarks(text: string, marks: any[]): string {
+  let result = text;
+  for (const mark of marks) {
+    switch (mark.type) {
+      case "strong":    result = `**${result}**`; break;
+      case "em":        result = `_${result}_`; break;
+      case "strike":    result = `~~${result}~~`; break;
+      case "code":      result = `\`${result}\``; break;
+      case "underline": result = `<u>${result}</u>`; break;
+      case "link":      result = `[${result}](${mark.attrs?.href || ""})`; break;
+      case "subsup":
+        result = mark.attrs?.type === "sub" ? `<sub>${result}</sub>` : `<sup>${result}</sup>`;
+        break;
+      case "textColor":
+        // No markdown equivalent — keep text as-is
+        break;
+      case "annotation":
+        // Annotations are Confluence-side only, ignore
+        break;
+      default:
+        result += ` <!-- ADF mark "${mark.type}" could not be converted -->`;
+    }
+  }
+  return result;
+}
+
+function convertInlineToMarkdown(node: any): string {
   if (!node) return "";
 
   switch (node.type) {
     case "text": {
-      let text = node.text || "";
-      if (node.marks) {
-        for (const mark of node.marks) {
-          if (mark.type === "strike") text = `~~${text}~~`;
-        }
-      }
-      return text;
+      const text = node.text || "";
+      return node.marks?.length ? applyMarks(text, node.marks) : text;
     }
+    case "hardBreak":
+      return "\n";
     case "mention":
       return node.attrs?.text || "@unknown";
     case "emoji":
-      return node.attrs?.shortName || "";
-    case "hardBreak":
-      return "\n";
+      return node.attrs?.shortName || node.attrs?.text || "";
     case "inlineCard":
       return node.attrs?.url || "";
+    case "status":
+      return `[${node.attrs?.text || "STATUS"}]`;
+    case "date": {
+      const ts = node.attrs?.timestamp;
+      return ts ? new Date(Number(ts)).toLocaleDateString() : "";
+    }
+    case "placeholder":
+      return node.attrs?.text || "";
     default:
-      return node.text || "";
+      return `<!-- ADF inline "${node.type}" could not be converted: ${JSON.stringify(node)} -->`;
   }
 }
 
-export function extractTextFromADF(node: any, depth: number = 0): string {
-  if (!node) return "No description";
+function inlineContent(nodes: any[]): string {
+  return (nodes || []).map(convertInlineToMarkdown).join("");
+}
 
+// ── List helpers ──────────────────────────────────────────────────────────────
+
+function convertListItem(item: any, depth: number, bullet: string): string {
   const indent = "  ".repeat(depth);
-  let result = "";
+  if (!item.content) return `${indent}${bullet}\n`;
 
-  if (typeof node === "string") {
-    return indent + node;
+  const [first, ...rest] = item.content;
+  let text = "";
+
+  if (first?.type === "paragraph") {
+    text = inlineContent(first.content || []).trim();
+  } else {
+    text = convertBlockToMarkdown(first, depth).trim();
   }
+
+  let result = `${indent}${bullet} ${text}\n`;
+
+  for (const child of rest) {
+    result += convertBlockToMarkdown(child, depth + 1);
+  }
+
+  return result;
+}
+
+// ── Table helper ──────────────────────────────────────────────────────────────
+
+function convertTable(node: any): string {
+  const rows: any[] = node.content || [];
+  if (rows.length === 0) return "";
+
+  const rendered = rows.map((row: any) =>
+    (row.content || []).map((cell: any) =>
+      (cell.content || [])
+        .map((c: any) => convertBlockToMarkdown(c, 0))
+        .join("")
+        .trim()
+        .replace(/\n+/g, " ")
+    )
+  );
+
+  const colCount = Math.max(...rendered.map((r) => r.length));
+  const separator = `| ${Array(colCount).fill("---").join(" | ")} |`;
+
+  const lines = rendered.map((cells) => `| ${cells.join(" | ")} |`);
+  lines.splice(1, 0, separator);
+
+  return lines.join("\n") + "\n\n";
+}
+
+// ── Block converter ───────────────────────────────────────────────────────────
+
+function convertBlockToMarkdown(node: any, depth: number = 0): string {
+  if (!node) return "";
+  if (typeof node === "string") return node;
 
   switch (node.type) {
-    case "heading":
-      result += `${indent}${node.content?.map((c: any) => extractInlineNodeText(c)).join("") || ""}\n`;
-      break;
-    case "paragraph":
-      if (node.content) {
-        const paragraphText = node.content.map((c: any) => extractInlineNodeText(c)).join("").trim();
-        if (paragraphText) result += `${indent}${paragraphText}\n`;
-      }
-      break;
+    case "doc":
+      return (node.content || [])
+        .map((c: any) => convertBlockToMarkdown(c, depth))
+        .join("")
+        .trim();
+
+    case "paragraph": {
+      if (!node.content) return "";
+      const text = inlineContent(node.content).trim();
+      return text ? `${text}\n\n` : "";
+    }
+
+    case "heading": {
+      const level = Math.min(Math.max(node.attrs?.level || 1, 1), 6);
+      const text = inlineContent(node.content || []);
+      return `${"#".repeat(level)} ${text}\n\n`;
+    }
+
     case "bulletList":
-    case "orderedList":
-      if (node.content) {
-        result += node.content.map((item: any) => extractTextFromADF(item, depth)).join("");
+      return (
+        (node.content || [])
+          .map((item: any) => convertListItem(item, depth, "-"))
+          .join("") + "\n"
+      );
+
+    case "orderedList": {
+      const start = node.attrs?.order ?? 1;
+      return (
+        (node.content || [])
+          .map((item: any, i: number) => convertListItem(item, depth, `${start + i}.`))
+          .join("") + "\n"
+      );
+    }
+
+    case "codeBlock": {
+      const lang = node.attrs?.language || "";
+      const code = (node.content || []).map((c: any) => c.text || "").join("");
+      return `\`\`\`${lang}\n${code}\n\`\`\`\n\n`;
+    }
+
+    case "blockquote": {
+      const inner = (node.content || [])
+        .map((c: any) => convertBlockToMarkdown(c, depth))
+        .join("")
+        .trimEnd();
+      return inner.split("\n").map((line: string) => `> ${line}`).join("\n") + "\n\n";
+    }
+
+    case "rule":
+      return "---\n\n";
+
+    case "table":
+      return convertTable(node);
+
+    case "panel": {
+      const type = (node.attrs?.panelType || "info").toUpperCase();
+      const inner = (node.content || [])
+        .map((c: any) => convertBlockToMarkdown(c, depth))
+        .join("")
+        .trimEnd();
+      const body = inner.split("\n").map((l: string) => `> ${l}`).join("\n");
+      return `> **[${type}]**\n${body}\n\n`;
+    }
+
+    case "expand":
+    case "nestedExpand": {
+      const title = node.attrs?.title || "";
+      const inner = (node.content || [])
+        .map((c: any) => convertBlockToMarkdown(c, depth))
+        .join("")
+        .trim();
+      return `**${title}**\n\n${inner}\n\n`;
+    }
+
+    case "taskList":
+      return (
+        (node.content || [])
+          .map((item: any) => {
+            const done = item.attrs?.state === "DONE";
+            const text = inlineContent(item.content || []).trim();
+            return `- [${done ? "x" : " "}] ${text}\n`;
+          })
+          .join("") + "\n"
+      );
+
+    case "decisionList":
+      return (
+        (node.content || [])
+          .map((item: any) => {
+            const text = inlineContent(item.content || []).trim();
+            return `- ${text}\n`;
+          })
+          .join("") + "\n"
+      );
+
+    case "mediaSingle":
+    case "mediaGroup":
+    case "media":
+      return `<!-- ADF media could not be converted: ${JSON.stringify(node.attrs || {})} -->\n\n`;
+
+    case "blockCard":
+    case "embedCard":
+      return `${node.attrs?.url || ""}\n\n`;
+
+    case "extension":
+    case "bodiedExtension":
+    case "inlineExtension":
+      return `<!-- ADF extension "${node.attrs?.extensionKey || node.type}" could not be converted: ${JSON.stringify(node.attrs || {})} -->\n\n`;
+
+    default: {
+      // Inline nodes that ended up here (e.g. "text", "mention") — convert as inline
+      if (node.type === "text" || node.type === "mention" || node.type === "emoji" ||
+          node.type === "hardBreak" || node.type === "inlineCard" || node.type === "status" ||
+          node.type === "date" || node.type === "placeholder") {
+        return convertInlineToMarkdown(node);
       }
-      break;
-    case "listItem":
-      if (node.content) {
-        const itemContent = node.content.map((c: any) => extractTextFromADF(c, depth + 1)).join("").trim();
-        result += `${indent}• ${itemContent}\n`;
-      }
-      break;
-    default:
+      // Unknown block node — try to recurse into children, but flag it
+      const comment = `<!-- ADF node "${node.type}" could not be converted -->`;
       if (Array.isArray(node.content)) {
-        result += node.content.map((c: any) => extractTextFromADF(c, depth)).join("");
-      } else if (node.text) {
-        result += indent + node.text;
+        const inner = node.content
+          .map((c: any) => convertBlockToMarkdown(c, depth))
+          .join("");
+        return `${comment}\n${inner}`;
       }
+      return `${comment}\n\n`;
+    }
   }
-  return result;
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+/**
+ * Format a labeled section.
+ * - Single-line value → "Label: value"
+ * - Multi-line value  → "Label:\n  line1\n  line2"
+ */
+export function formatSection(label: string, value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed.includes("\n")) return `${label}: ${trimmed}`;
+  const indented = trimmed
+    .split("\n")
+    .map((line) => (line.length > 0 ? `  ${line}` : ""))
+    .join("\n");
+  return `${label}:\n${indented}`;
+}
+
+export function convertADFToMarkdown(node: any): string {
+  if (!node) return "No content";
+  return convertBlockToMarkdown(node).trim();
 }
 
 export function formatFieldValue(value: any): string {
   if (value === null || value === undefined) return "Not set";
   if (typeof value === "object") {
-    if ((value as any).type === "doc") return extractTextFromADF(value);
+    if ((value as any).type === "doc") return convertADFToMarkdown(value);
     if ((value as any).displayName) return (value as any).displayName;
     if (Array.isArray(value)) return value.map((item) => formatFieldValue(item)).join(", ");
     return JSON.stringify(value);
@@ -88,8 +288,7 @@ export function hasMeaningfulValue(value: any): boolean {
 
   if (t === "object") {
     if ((value as any).type === "doc") {
-      const text = extractTextFromADF(value).trim();
-      return text.length > 0;
+      return convertADFToMarkdown(value).length > 0;
     }
     const candidateKeys = ["value", "displayName", "name", "id", "text"];
     for (const key of candidateKeys) {

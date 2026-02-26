@@ -20,6 +20,7 @@ import { assignIssueDefinition, assignIssueHandler } from "./tools/assignIssue.j
 import { labelsDefinition, labelsHandler } from "./tools/labels.js";
 import { linkIssuesDefinition, linkIssuesHandler } from "./tools/linkTickets.js";
 import { unlinkIssuesDefinition, unlinkIssuesHandler } from "./tools/unlinkIssues.js";
+import { updateCommentDefinition, updateCommentHandler } from "./tools/updateComment.js";
 // Map to store custom field information (name to ID mapping)
 const customFieldsMap = new Map();
 const { JIRA_HOST, JIRA_EMAIL, JIRA_API_TOKEN } = process.env;
@@ -65,6 +66,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         listSprintTicketsDefinition,
         getTicketDetailsDefinition,
         addCommentDefinition,
+        updateCommentDefinition,
         updateDescriptionDefinition,
         listChildIssuesDefinition,
         createSubTicketDefinition,
@@ -93,6 +95,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         case "add-comment": {
             return await addCommentHandler(jira, args);
+        }
+        case "update-comment": {
+            return await updateCommentHandler(jira, args);
         }
         case "update-description": {
             return await updateDescriptionHandler(jira, args);

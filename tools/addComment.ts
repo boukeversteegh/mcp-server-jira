@@ -31,11 +31,11 @@ export async function addCommentHandler(
   const { issueKey, comment, commentFormat = "plain" } = args;
 
   return withJiraError(async () => {
-    await jira.issueComments.addComment({
+    const result = await jira.issueComments.addComment({
       issueIdOrKey: issueKey,
       comment: buildADF(comment, commentFormat) as any,
     });
 
-    return respond(`Successfully added comment to ${issueKey}`);
+    return respond(`Successfully added comment to ${issueKey} (comment ID: ${result.id})`);
   }, `Error adding comment to ${issueKey}`);
 }

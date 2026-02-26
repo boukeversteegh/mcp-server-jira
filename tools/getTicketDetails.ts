@@ -1,6 +1,6 @@
 import { Version3Client } from "jira.js";
 import type { McpResponse } from "../utils.js";
-import { extractTextFromADF, formatFieldValue, hasMeaningfulValue } from "../shared/helpers.js";
+import { convertADFToMarkdown, formatFieldValue, formatSection, hasMeaningfulValue } from "../shared/helpers.js";
 
 export const getTicketDetailsDefinition = {
   name: "get-ticket-details",
@@ -47,7 +47,7 @@ export async function getTicketDetailsHandler(
   const baseHost = (process.env.JIRA_HOST || "").replace(/\/+$/, "");
   const url = baseHost ? `${baseHost}/browse/${issue.key}` : (issue.self || "");
  
-  const description = extractTextFromADF(issue.fields.description);
+  const description = convertADFToMarkdown(issue.fields.description);
 
   const linkedIssues = (issue.fields.issuelinks || [])
     .map((link: any) => {
@@ -80,11 +80,11 @@ export async function getTicketDetailsHandler(
             if (typeof comment.body === "string") {
               body = comment.body;
             } else if (comment.body && typeof comment.body === "object") {
-              body = extractTextFromADF(comment.body);
+              body = convertADFToMarkdown(comment.body);
             } else {
               body = "No content";
             }
-            return `[${created}] ${author}:\n${body}`;
+            return `[${created}] ${author} (ID: ${comment.id}):\n${body}`;
           })
           .join("\n\n")
       : "No comments";
@@ -109,37 +109,25 @@ ${Object.entries(customFieldsData)
     content: [
       {
         type: "text",
-        text: `
-Key: ${issue.key}
-URL: ${url}
-Title: ${issue.fields.summary || "No summary"}
-Type: ${issue.fields.issuetype?.name || "Unknown type"}
-Status: ${issue.fields.status?.name || "No status"}
-Assignee: ${issue.fields.assignee?.displayName || "Unassigned"}
-Labels: ${
-          Array.isArray(issue.fields.labels) && issue.fields.labels.length > 0
-            ? issue.fields.labels.join(", ")
-            : "No labels"
-        }
-Parent: ${
-          (issue.fields as any).parent
-            ? `${(issue.fields as any).parent.key} (${
-                (issue.fields as any).parent.fields?.issuetype?.name || "Unknown type"
-              }) - ${(issue.fields as any).parent.fields?.summary || "No summary"}`
-            : "No parent"
-        }
-Description:
-${description}
-Related Issues:
-${relatedIssues}
-Created: ${issue.fields.created || "Unknown"}
-Updated: ${issue.fields.updated || "Unknown"}
-
-${customFieldsSection}
-
-Comments:
-${formattedComments}
-`.trim(),
+        text: [
+          `Key: ${issue.key}`,
+          `URL: ${url}`,
+          `Title: ${issue.fields.summary || "No summary"}`,
+          `Type: ${issue.fields.issuetype?.name || "Unknown type"}`,
+          `Status: ${issue.fields.status?.name || "No status"}`,
+          `Assignee: ${issue.fields.assignee?.displayName || "Unassigned"}`,
+          `Labels: ${Array.isArray(issue.fields.labels) && issue.fields.labels.length > 0 ? issue.fields.labels.join(", ") : "No labels"}`,
+          `Parent: ${(issue.fields as any).parent ? `${(issue.fields as any).parent.key} (${(issue.fields as any).parent.fields?.issuetype?.name || "Unknown type"}) - ${(issue.fields as any).parent.fields?.summary || "No summary"}` : "No parent"}`,
+          `Created: ${issue.fields.created || "Unknown"}`,
+          `Updated: ${issue.fields.updated || "Unknown"}`,
+          "",
+          formatSection("Description", description),
+          "",
+          formatSection("Related Issues", relatedIssues),
+          "",
+          ...(customFieldsSection ? [formatSection("Custom Fields", customFieldsSection.replace(/^Custom Fields:\n/, "")), ""] : []),
+          formatSection("Comments", formattedComments),
+        ].join("\n"),
       },
     ],
     _meta: {},
