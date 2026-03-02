@@ -1,7 +1,7 @@
 import { respond, withJiraError } from "../utils.js";
 export const linkIssuesDefinition = {
     name: "link-issues",
-    description: "Link multiple tickets using the 'relates to' relationship. Provide inwardIssueKeys and outwardIssueKeys lists to create links in both directions.",
+    description: "Link multiple tickets using a specified link type. Provide inwardIssueKeys and outwardIssueKeys lists to create links in both directions.",
     inputSchema: {
         type: "object",
         properties: {
@@ -14,13 +14,17 @@ export const linkIssuesDefinition = {
                 type: "array",
                 items: { type: "string" },
                 description: "Keys that will be used as outwardIssue in links"
+            },
+            linkType: {
+                type: "string",
+                description: "Name of the link type, e.g. 'Blocks', 'Relates', 'Duplicates'. Defaults to 'Relates'. If the type is not found, available types are listed."
             }
         },
         required: ["inwardIssueKeys", "outwardIssueKeys"]
     }
 };
 export async function linkIssuesHandler(jira, args) {
-    const { inwardIssueKeys, outwardIssueKeys } = args;
+    const { inwardIssueKeys, outwardIssueKeys, linkType = "Relates" } = args;
     return withJiraError(async () => {
         if (!Array.isArray(inwardIssueKeys) || inwardIssueKeys.length === 0) {
             return respond("Error: inwardIssueKeys must be a non-empty array of issue keys.");
@@ -28,12 +32,17 @@ export async function linkIssuesHandler(jira, args) {
         if (!Array.isArray(outwardIssueKeys) || outwardIssueKeys.length === 0) {
             return respond("Error: outwardIssueKeys must be a non-empty array of issue keys.");
         }
-        const linkTypes = await jira.issueLinkTypes.getIssueLinkTypes();
-        const relatesTo = linkTypes.issueLinkTypes?.find(linkType => linkType.name?.toLowerCase() === "relates to" ||
-            linkType.inward?.toLowerCase() === "relates to" ||
-            linkType.outward?.toLowerCase() === "relates to");
-        if (!relatesTo) {
-            throw new Error("Could not find 'relates to' link type");
+        const linkTypesResponse = await jira.issueLinkTypes.getIssueLinkTypes();
+        const available = linkTypesResponse.issueLinkTypes ?? [];
+        const needle = linkType.toLowerCase();
+        const matched = available.find((lt) => lt.name?.toLowerCase() === needle ||
+            lt.inward?.toLowerCase() === needle ||
+            lt.outward?.toLowerCase() === needle);
+        if (!matched) {
+            const list = available
+                .map((lt) => `  - ${lt.name} (inward: "${lt.inward}", outward: "${lt.outward}")`)
+                .join("\n");
+            return respond(`Link type "${linkType}" not found. Available types:\n${list}`);
         }
         const results = [];
         const errors = [];
@@ -42,7 +51,7 @@ export async function linkIssuesHandler(jira, args) {
             for (const inward of inwardIssueKeys) {
                 try {
                     await jira.issueLinks.linkIssues({
-                        type: { name: relatesTo.name || "Relates" },
+                        type: { name: matched.name },
                         inwardIssue: { key: inward },
                         outwardIssue: { key: outward }
                     });
@@ -53,7 +62,7 @@ export async function linkIssuesHandler(jira, args) {
                 }
             }
         }
-        let msg = `Link type: "${relatesTo.name || "Relates"}"\n`;
+        let msg = `Link type: "${matched.name}" (inward: "${matched.inward}", outward: "${matched.outward}")\n`;
         if (results.length > 0) {
             msg += `Created ${results.length} links:\n` + results.join("\n");
         }

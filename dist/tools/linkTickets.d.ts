@@ -20,6 +20,10 @@ export declare const linkIssuesDefinition: {
                 };
                 description: string;
             };
+            linkType: {
+                type: string;
+                description: string;
+            };
         };
         required: string[];
     };
@@ -27,4 +31,5 @@ export declare const linkIssuesDefinition: {
 export declare function linkIssuesHandler(jira: Version3Client, args: {
     inwardIssueKeys: string[];
     outwardIssueKeys: string[];
+    linkType?: string;
 }): Promise<McpResponse>;
