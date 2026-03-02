@@ -213,7 +213,7 @@ function convertBlockToMarkdown(node: any, depth: number = 0): string {
     case "mediaSingle":
     case "mediaGroup":
     case "media":
-      return `<!-- ADF media could not be converted: ${JSON.stringify(node.attrs || {})} -->\n\n`;
+      return `<!-- ADF "${node.type}" could not be converted: ${JSON.stringify(node.attrs || {})} -->\n\n`;
 
     case "blockCard":
     case "embedCard":

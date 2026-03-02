@@ -187,7 +187,7 @@ function convertBlockToMarkdown(node, depth = 0) {
         case "mediaSingle":
         case "mediaGroup":
         case "media":
-            return `<!-- ADF media could not be converted: ${JSON.stringify(node.attrs || {})} -->\n\n`;
+            return `<!-- ADF "${node.type}" could not be converted: ${JSON.stringify(node.attrs || {})} -->\n\n`;
         case "blockCard":
         case "embedCard":
             return `${node.attrs?.url || ""}\n\n`;
