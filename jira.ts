@@ -141,7 +141,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     case "link-issues": {
-      return await linkIssuesHandler(jira, args as { inwardIssueKeys: string[]; outwardIssueKeys: string[] });
+      return await linkIssuesHandler(jira, args as { inwardIssueKeys: string[]; outwardIssueKeys: string[]; linkType?: string });
     }
 
     case "create-ticket": {
@@ -157,7 +157,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     case "update-issues": {
-      return await updateIssuesHandler(jira, customFieldsMap, args as { issueKeys: string[]; fields: Record<string, any> });
+      return await updateIssuesHandler(jira, customFieldsMap, args as { updates: { issueKeys: string[]; fields: Record<string, any> }[] });
     }
 
     case "list-issue-fields": {
