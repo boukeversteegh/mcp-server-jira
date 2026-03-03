@@ -21,6 +21,7 @@ import { labelsDefinition, labelsHandler } from "./tools/labels.js";
 import { linkIssuesDefinition, linkIssuesHandler } from "./tools/linkTickets.js";
 import { unlinkIssuesDefinition, unlinkIssuesHandler } from "./tools/unlinkIssues.js";
 import { updateCommentDefinition, updateCommentHandler } from "./tools/updateComment.js";
+import { getAttachmentDefinition, getAttachmentHandler } from "./tools/getAttachment.js";
 // Map to store custom field information (name to ID mapping)
 const customFieldsMap = new Map();
 const { JIRA_HOST, JIRA_EMAIL, JIRA_API_TOKEN } = process.env;
@@ -77,7 +78,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         listIssueTransitionsDefinition,
         assignIssueDefinition,
         listJiraFiltersDefinition,
-        listUsersDefinition
+        listUsersDefinition,
+        getAttachmentDefinition
     ]
 }));
 // Handle tool execution
@@ -140,6 +142,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         case "list-jira-filters": {
             return await listJiraFiltersHandler(jira);
+        }
+        case "get-attachment": {
+            return await getAttachmentHandler(jira, args);
         }
         default:
             throw new Error(`Unknown tool: ${name}`);

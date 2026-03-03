@@ -60,6 +60,10 @@ function convertInlineToMarkdown(node) {
         }
         case "placeholder":
             return node.attrs?.text || "";
+        case "mediaInline": {
+            const mediaId = node.attrs?.id || "unknown";
+            return `[Attachment: ${mediaId}]`;
+        }
         default:
             return `<!-- ADF inline "${node.type}" could not be converted: ${JSON.stringify(node)} -->`;
     }
@@ -186,8 +190,17 @@ function convertBlockToMarkdown(node, depth = 0) {
                 .join("") + "\n");
         case "mediaSingle":
         case "mediaGroup":
-        case "media":
-            return `<!-- ADF "${node.type}" could not be converted: ${JSON.stringify(node.attrs || {})} -->\n\n`;
+            // Recurse into children (which are media nodes)
+            return (node.content || [])
+                .map((c) => convertBlockToMarkdown(c, depth))
+                .join("");
+        case "media": {
+            const mediaId = node.attrs?.id || "unknown";
+            const mediaType = node.attrs?.type || "file";
+            const alt = node.attrs?.alt;
+            const label = alt || `${mediaType}:${mediaId}`;
+            return `[Attachment: ${label}]\n\n`;
+        }
         case "blockCard":
         case "embedCard":
             return `${node.attrs?.url || ""}\n\n`;

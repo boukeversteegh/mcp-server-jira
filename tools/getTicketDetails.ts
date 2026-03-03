@@ -2,6 +2,12 @@ import { Version3Client } from "jira.js";
 import type { McpResponse } from "../utils.js";
 import { convertADFToMarkdown, formatFieldValue, formatSection, hasMeaningfulValue } from "../shared/helpers.js";
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export const getTicketDetailsDefinition = {
   name: "get-ticket-details",
   description: "Get detailed information about a specific ticket",
@@ -35,6 +41,7 @@ export async function getTicketDetailsHandler(
     "issuetype",
     "subtasks",
     "labels",
+    "attachment",
   ];
 
   const fieldsToFetch = [...standardFields, ...Array.from(customFieldsMap.values())];
@@ -89,6 +96,19 @@ export async function getTicketDetailsHandler(
           .join("\n\n")
       : "No comments";
 
+  const attachments = ((issue.fields as any).attachment || []) as any[];
+  const formattedAttachments =
+    attachments.length > 0
+      ? attachments
+          .map((a: any) => {
+            const size = a.size != null ? formatFileSize(a.size) : "unknown size";
+            const created = a.created ? new Date(a.created).toLocaleString() : "unknown date";
+            const author = a.author?.displayName || "unknown";
+            return `ID: ${a.id} | ${a.filename} (${a.mimeType}, ${size}) | by ${author} on ${created}`;
+          })
+          .join("\n")
+      : "";
+
   const customFieldsData: Record<string, string> = {};
   for (const [fieldName, fieldId] of customFieldsMap.entries()) {
     const raw = (issue.fields as any)[fieldId];
@@ -125,6 +145,7 @@ ${Object.entries(customFieldsData)
           "",
           formatSection("Related Issues", relatedIssues),
           "",
+          ...(formattedAttachments ? [formatSection("Attachments", formattedAttachments), ""] : []),
           ...(customFieldsSection ? [formatSection("Custom Fields", customFieldsSection.replace(/^Custom Fields:\n/, "")), ""] : []),
           formatSection("Comments", formattedComments),
         ].join("\n"),

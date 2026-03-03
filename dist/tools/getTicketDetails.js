@@ -1,4 +1,11 @@
 import { convertADFToMarkdown, formatFieldValue, formatSection, hasMeaningfulValue } from "../shared/helpers.js";
+function formatFileSize(bytes) {
+    if (bytes < 1024)
+        return `${bytes} B`;
+    if (bytes < 1024 * 1024)
+        return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 export const getTicketDetailsDefinition = {
     name: "get-ticket-details",
     description: "Get detailed information about a specific ticket",
@@ -25,6 +32,7 @@ export async function getTicketDetailsHandler(jira, customFieldsMap, args) {
         "issuetype",
         "subtasks",
         "labels",
+        "attachment",
     ];
     const fieldsToFetch = [...standardFields, ...Array.from(customFieldsMap.values())];
     const issue = await jira.issues.getIssue({
@@ -69,6 +77,17 @@ export async function getTicketDetailsHandler(jira, customFieldsMap, args) {
         })
             .join("\n\n")
         : "No comments";
+    const attachments = (issue.fields.attachment || []);
+    const formattedAttachments = attachments.length > 0
+        ? attachments
+            .map((a) => {
+            const size = a.size != null ? formatFileSize(a.size) : "unknown size";
+            const created = a.created ? new Date(a.created).toLocaleString() : "unknown date";
+            const author = a.author?.displayName || "unknown";
+            return `ID: ${a.id} | ${a.filename} (${a.mimeType}, ${size}) | by ${author} on ${created}`;
+        })
+            .join("\n")
+        : "";
     const customFieldsData = {};
     for (const [fieldName, fieldId] of customFieldsMap.entries()) {
         const raw = issue.fields[fieldId];
@@ -102,6 +121,7 @@ ${Object.entries(customFieldsData)
                     "",
                     formatSection("Related Issues", relatedIssues),
                     "",
+                    ...(formattedAttachments ? [formatSection("Attachments", formattedAttachments), ""] : []),
                     ...(customFieldsSection ? [formatSection("Custom Fields", customFieldsSection.replace(/^Custom Fields:\n/, "")), ""] : []),
                     formatSection("Comments", formattedComments),
                 ].join("\n"),
