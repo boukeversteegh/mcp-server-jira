@@ -8,7 +8,7 @@ export const addCommentDefinition = {
             issueKey: { type: "string" },
             comment: {
                 type: "string",
-                description: "Comment text. Use literal newlines (JSON \\n) for line breaks, not escaped backslashes."
+                description: "Comment text. DO NOT escape newlines as backslash-n — use real newline characters only."
             },
             commentFormat: {
                 type: "string",

@@ -12,7 +12,7 @@ export const updateCommentDefinition = {
             },
             comment: {
                 type: "string",
-                description: "New comment text. Use literal newlines (JSON \\n) for line breaks, not escaped backslashes."
+                description: "New comment text. DO NOT escape newlines as backslash-n — use real newline characters only."
             },
             commentFormat: {
                 type: "string",

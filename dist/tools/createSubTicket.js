@@ -9,7 +9,7 @@ export const createSubTicketDefinition = {
             summary: { type: "string" },
             description: {
                 type: "string",
-                description: "Description text. Use literal newlines (JSON \\n) for line breaks, not escaped backslashes."
+                description: "Description text. DO NOT escape newlines as backslash-n — use real newline characters only."
             },
             descriptionFormat: {
                 type: "string",
