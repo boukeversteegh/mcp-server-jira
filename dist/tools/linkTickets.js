@@ -35,14 +35,17 @@ export async function linkIssuesHandler(jira, args) {
         const linkTypesResponse = await jira.issueLinkTypes.getIssueLinkTypes();
         const available = linkTypesResponse.issueLinkTypes ?? [];
         const needle = linkType.toLowerCase();
+        // Strip leading numeric prefix (e.g. "1. Relates" -> "relates") for flexible matching
+        const stripPrefix = (s) => s.replace(/^\d+\.\s*/, "").toLowerCase();
         const matched = available.find((lt) => lt.name?.toLowerCase() === needle ||
+            stripPrefix(lt.name ?? "") === needle ||
             lt.inward?.toLowerCase() === needle ||
             lt.outward?.toLowerCase() === needle);
         if (!matched) {
             const list = available
-                .map((lt) => `  - ${lt.name} (inward: "${lt.inward}", outward: "${lt.outward}")`)
+                .map((lt) => `  - "${lt.name}" (inward: "${lt.inward}", outward: "${lt.outward}")`)
                 .join("\n");
-            return respond(`Link type "${linkType}" not found. Available types:\n${list}`);
+            return respond(`Link type "${linkType}" not found. Use the exact name shown in quotes below as the linkType value:\n${list}`);
         }
         const results = [];
         const errors = [];
