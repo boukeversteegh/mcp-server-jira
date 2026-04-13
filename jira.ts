@@ -21,6 +21,7 @@ import { labelsDefinition, labelsHandler } from "./tools/labels.js";
 import { linkIssuesDefinition, linkIssuesHandler } from "./tools/linkTickets.js";
 import { unlinkIssuesDefinition, unlinkIssuesHandler } from "./tools/unlinkIssues.js";
 import { updateCommentDefinition, updateCommentHandler } from "./tools/updateComment.js";
+import { deleteCommentDefinition, deleteCommentHandler } from "./tools/deleteComment.js";
 import { getAttachmentDefinition, getAttachmentHandler } from "./tools/getAttachment.js";
 
 // Map to store custom field information (name to ID mapping)
@@ -81,6 +82,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     getTicketDetailsDefinition,
     addCommentDefinition,
     updateCommentDefinition,
+    deleteCommentDefinition,
     updateDescriptionDefinition,
     listChildIssuesDefinition,
     createSubTicketDefinition,
@@ -127,6 +129,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     case "update-comment": {
       return await updateCommentHandler(jira, args as { issueKey: string; commentId: string; comment: string; commentFormat?: "plain" | "wiki" | "markdown" | "adf" });
+    }
+
+    case "delete-comment": {
+      return await deleteCommentHandler(jira, args as { issueKey: string; commentId: string });
     }
 
     case "update-description": {
