@@ -6,6 +6,41 @@ function formatFileSize(bytes) {
         return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+async function fetchDeployments(issueId, baseHost) {
+    if (!issueId || !baseHost)
+        return [];
+    const auth = `Basic ${Buffer.from(`${process.env.JIRA_EMAIL}:${process.env.JIRA_API_TOKEN}`).toString("base64")}`;
+    const headers = { Authorization: auth, Accept: "application/json" };
+    try {
+        const summaryUrl = `${baseHost}/rest/dev-status/1.0/issue/summary?issueId=${encodeURIComponent(issueId)}`;
+        const summaryRes = await fetch(summaryUrl, { headers });
+        if (!summaryRes.ok)
+            return [];
+        const summary = await summaryRes.json();
+        const byType = summary?.summary?.deployment?.byInstanceType || {};
+        const appTypes = Object.keys(byType).filter((t) => (byType[t]?.count || 0) > 0);
+        if (appTypes.length === 0)
+            return [];
+        const results = [];
+        for (const appType of appTypes) {
+            const detailUrl = `${baseHost}/rest/dev-status/1.0/issue/detail?issueId=${encodeURIComponent(issueId)}&applicationType=${encodeURIComponent(appType)}&dataType=deployment`;
+            const detailRes = await fetch(detailUrl, { headers });
+            if (!detailRes.ok)
+                continue;
+            const detail = await detailRes.json();
+            for (const entry of detail?.detail || []) {
+                for (const dep of entry.deployments || []) {
+                    results.push({ ...dep, _instanceType: appType });
+                }
+            }
+        }
+        return results;
+    }
+    catch (error) {
+        console.error(`Error fetching deployments: ${error.message}`);
+        return [];
+    }
+}
 export const getTicketDetailsDefinition = {
     name: "get-ticket-details",
     description: "Get detailed information about a specific ticket",
@@ -41,6 +76,19 @@ export async function getTicketDetailsHandler(jira, customFieldsMap, args) {
     });
     const baseHost = (process.env.JIRA_HOST || "").replace(/\/+$/, "");
     const url = baseHost ? `${baseHost}/browse/${issue.key}` : (issue.self || "");
+    const deployments = await fetchDeployments(issue.id, baseHost);
+    const formattedDeployments = deployments.length > 0
+        ? deployments
+            .map((d) => {
+            const env = d.environment?.displayName || d.environment?.type || "unknown env";
+            const state = d.state || "unknown state";
+            const when = d.lastUpdated ? new Date(d.lastUpdated).toLocaleString() : "unknown date";
+            const name = d.displayName || `Deployment ${d.displayNumber || ""}`.trim();
+            const link = d.url ? ` (${d.url})` : "";
+            return `[${when}] ${env}: ${name} — ${state}${link} [${d._instanceType}]`;
+        })
+            .join("\n")
+        : "";
     const description = convertADFToMarkdown(issue.fields.description);
     const linkedIssues = (issue.fields.issuelinks || [])
         .map((link) => {
@@ -122,6 +170,7 @@ ${Object.entries(customFieldsData)
                     formatSection("Related Issues", relatedIssues),
                     "",
                     ...(formattedAttachments ? [formatSection("Attachments", formattedAttachments), ""] : []),
+                    ...(formattedDeployments ? [formatSection("Deployments", formattedDeployments), ""] : []),
                     ...(customFieldsSection ? [formatSection("Custom Fields", customFieldsSection.replace(/^Custom Fields:\n/, "")), ""] : []),
                     formatSection("Comments", formattedComments),
                 ].join("\n"),
