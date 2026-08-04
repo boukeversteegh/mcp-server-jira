@@ -1,6 +1,7 @@
+import { detectMove, moveIssuesCore } from "./moveIssues.js";
 export const updateIssuesDefinition = {
     name: "update-issues",
-    description: 'Batch update fields on multiple tickets. Each entry in the updates array applies its fields to all issueKeys in that entry. Use a single entry to set the same fields on many issues, or multiple entries to set different fields per issue. For user fields (assignee, etc.), use {"accountId": "user-account-id"} format. Use the list-users tool to find account IDs.',
+    description: 'Batch update fields on multiple tickets. Each entry in the updates array applies its fields to all issueKeys in that entry. Use a single entry to set the same fields on many issues, or multiple entries to set different fields per issue. For user fields (assignee, etc.), use {"accountId": "user-account-id"} format. Use the list-users tool to find account IDs.\n\nTo move a ticket to another issue type (e.g. Task -> Bug, or Task -> Sub-task), set "issuetype" (or "type") to the target type name. A type change must be the only field in its entry — put any other field changes in a separate entry. When moving to a sub-task type, add "parentKey" unless the issue already has a parent. This runs as an async Jira "bulk move" operation (may take several seconds); mismatched fields, status, or classification are resolved to sensible defaults automatically rather than failing the move.',
     inputSchema: {
         type: "object",
         properties: {
@@ -18,7 +19,7 @@ export const updateIssuesDefinition = {
                         fields: {
                             type: "object",
                             additionalProperties: true,
-                            description: "Fields to set on the issues.",
+                            description: 'Fields to set on the issues. Alternatively, a lone "issuetype" (optionally with "parentKey") changes the issue type instead of editing fields.',
                         },
                     },
                     required: ["issueKeys", "fields"],
@@ -32,19 +33,41 @@ export async function updateIssuesHandler(jira, customFieldsMap, args) {
     const { updates } = args;
     if (!Array.isArray(updates) || updates.length === 0) {
         return {
-            content: [{ type: "text", text: "Error: updates must be a non-empty array." }],
+            content: [
+                { type: "text", text: "Error: updates must be a non-empty array." },
+            ],
             isError: true,
             _meta: {},
         };
     }
+    // Classify each entry up front: a type change ("move") or a plain field update.
+    const plan = [];
     for (const entry of updates) {
         if (!Array.isArray(entry.issueKeys) || entry.issueKeys.length === 0) {
             return {
-                content: [{ type: "text", text: "Error: each update entry must have a non-empty issueKeys array." }],
+                content: [
+                    {
+                        type: "text",
+                        text: "Error: each update entry must have a non-empty issueKeys array.",
+                    },
+                ],
                 isError: true,
                 _meta: {},
             };
         }
+        const detected = detectMove(entry.fields ?? {});
+        if (detected) {
+            if ("error" in detected) {
+                return {
+                    content: [{ type: "text", text: `Error: ${detected.error}` }],
+                    isError: true,
+                    _meta: {},
+                };
+            }
+            plan.push({ entry, move: detected.move });
+            continue;
+        }
+        plan.push({ entry });
         if (entry.fields.description !== undefined) {
             return {
                 content: [
@@ -60,7 +83,16 @@ export async function updateIssuesHandler(jira, customFieldsMap, args) {
     }
     const successes = [];
     const errors = [];
-    for (const entry of updates) {
+    const moveReports = [];
+    let moveFailed = false;
+    for (const { entry, move } of plan) {
+        if (move) {
+            const result = await moveIssuesCore(jira, entry.issueKeys, move);
+            moveReports.push(result.content.map((c) => c.text).join("\n"));
+            if (result.isError)
+                moveFailed = true;
+            continue;
+        }
         const processedFields = await resolveFields(jira, customFieldsMap, entry.fields);
         if (processedFields.error) {
             // Apply error to all issue keys in this entry
@@ -82,16 +114,27 @@ export async function updateIssuesHandler(jira, customFieldsMap, args) {
             }
         }
     }
-    const totalIssues = updates.reduce((sum, e) => sum + e.issueKeys.length, 0);
-    let msg = `Updated ${successes.length} of ${totalIssues} issues.`;
-    if (successes.length)
-        msg += `\nSucceeded: ${successes.join(", ")}`;
-    if (errors.length)
-        msg += `\n\nFailed ${errors.length} issues:\n${errors.join("\n")}`;
-    return {
-        content: [{ type: "text", text: msg }],
+    const fieldEntries = plan.filter((p) => !p.move);
+    const totalIssues = fieldEntries.reduce((sum, p) => sum + p.entry.issueKeys.length, 0);
+    const sections = [];
+    if (totalIssues > 0) {
+        let msg = `Updated ${successes.length} of ${totalIssues} issues.`;
+        if (successes.length)
+            msg += `\nSucceeded: ${successes.join(", ")}`;
+        if (errors.length)
+            msg += `\n\nFailed ${errors.length} issues:\n${errors.join("\n")}`;
+        sections.push(msg);
+    }
+    sections.push(...moveReports);
+    const response = {
+        content: [
+            { type: "text", text: sections.join("\n\n") || "No updates performed." },
+        ],
         _meta: {},
     };
+    if (moveFailed && successes.length === 0)
+        response.isError = true;
+    return response;
 }
 async function resolveFields(jira, customFieldsMap, fields) {
     const processedFields = { ...fields };
@@ -104,14 +147,22 @@ async function resolveFields(jira, customFieldsMap, fields) {
         try {
             const usersFound = await jira.userSearch.findUsers({ query: name });
             if (!usersFound || usersFound.length === 0) {
-                return { error: `Assignee lookup failed. No user found with display name "${name}".` };
+                return {
+                    error: `Assignee lookup failed. No user found with display name "${name}".`,
+                };
             }
             if (usersFound.length > 1) {
-                const list = usersFound.map((u) => `${u.displayName} (${u.accountId})`).join(", ");
-                return { error: `Assignee lookup failed. Multiple users found for "${name}": ${list}. Use accountId instead.` };
+                const list = usersFound
+                    .map((u) => `${u.displayName} (${u.accountId})`)
+                    .join(", ");
+                return {
+                    error: `Assignee lookup failed. Multiple users found for "${name}": ${list}. Use accountId instead.`,
+                };
             }
             if (!usersFound[0].accountId) {
-                return { error: `Assignee lookup failed. User "${usersFound[0].displayName}" has no accountId.` };
+                return {
+                    error: `Assignee lookup failed. User "${usersFound[0].displayName}" has no accountId.`,
+                };
             }
             processedFields.assignee = { accountId: usersFound[0].accountId };
         }
