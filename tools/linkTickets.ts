@@ -90,9 +90,11 @@ export async function linkIssuesHandler(
             const self = issue.key ?? issueKey;
             for (const link of issue.fields?.issuelinks ?? []) {
                 if (!sameType(link.type)) continue;
-                // In an issue's own link list, `outwardIssue` means: self --outward--> other.
-                if (link.outwardIssue?.key) existing.add(pairKey(self, link.outwardIssue.key));
-                if (link.inwardIssue?.key) existing.add(pairKey(link.inwardIssue.key, self));
+                // Jira returns only the *other* end of the link, under the field naming that
+                // issue's role. So `inwardIssue: Y` on issue X means the link is
+                // (outwardIssue: X, inwardIssue: Y), and `outwardIssue: Y` means (Y, X).
+                if (link.inwardIssue?.key) existing.add(pairKey(self, link.inwardIssue.key));
+                if (link.outwardIssue?.key) existing.add(pairKey(link.outwardIssue.key, self));
             }
             loaded.add(norm(issueKey));
             loaded.add(norm(self));
