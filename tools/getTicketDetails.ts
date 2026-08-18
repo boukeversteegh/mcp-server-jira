@@ -106,9 +106,13 @@ export async function getTicketDetailsHandler(
 
   const linkedIssues = (issue.fields.issuelinks || [])
     .map((link: any) => {
-      const relatedIssue = (link as any).inwardIssue || (link as any).outwardIssue;
+      // Jira returns only the other end of the link, under the field naming that issue's
+      // role: `inwardIssue` present means this issue is the outward side of the link.
+      const relatedIssue = link.inwardIssue || link.outwardIssue;
       if (!relatedIssue) return null;
-      return `${relatedIssue.key} ${relatedIssue.fields?.summary || "No summary"} [${relatedIssue.fields?.issuetype?.name || "Unknown type"}, ${relatedIssue.fields?.status?.name || "Unknown status"}]`;
+      const relation = (link.inwardIssue ? link.type?.outward : link.type?.inward) || "is linked to";
+      const linkType = link.type?.name ? ` (type: "${link.type.name}")` : "";
+      return `${relation} ${relatedIssue.key} ${relatedIssue.fields?.summary || "No summary"} [${relatedIssue.fields?.issuetype?.name || "Unknown type"}, ${relatedIssue.fields?.status?.name || "Unknown status"}]${linkType}`;
     })
     .filter(Boolean)
     .join("\n");
