@@ -149,7 +149,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     case "link-issues": {
-      return await linkIssuesHandler(jira, args as { inwardIssueKeys: string[]; outwardIssueKeys: string[]; linkType?: string });
+      return await linkIssuesHandler(jira, args as { inwardIssueKeys: string[]; outwardIssueKeys: string[]; linkType?: string; allowReciprocal?: boolean });
     }
 
     case "create-ticket": {

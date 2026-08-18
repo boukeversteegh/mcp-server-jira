@@ -24,6 +24,10 @@ export declare const linkIssuesDefinition: {
                 type: string;
                 description: string;
             };
+            allowReciprocal: {
+                type: string;
+                description: string;
+            };
         };
         required: string[];
     };
@@ -32,4 +36,5 @@ export declare function linkIssuesHandler(jira: Version3Client, args: {
     inwardIssueKeys: string[];
     outwardIssueKeys: string[];
     linkType?: string;
+    allowReciprocal?: boolean;
 }): Promise<McpResponse>;
