@@ -179,7 +179,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     const notice = result.isError ? updateNoticeForError() : consumeUpdateNotice();
     if (notice) {
-        result.content = [...(result.content ?? []), { type: "text", text: notice }];
+        // Clients concatenate content blocks without separation, so the notice has to
+        // carry its own blank line or it runs into the last line of the result.
+        result.content = [...(result.content ?? []), { type: "text", text: `\n\n${notice}` }];
     }
     return result;
 });
