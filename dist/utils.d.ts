@@ -1,4 +1,24 @@
 export type DescriptionFormat = "plain" | "wiki" | "markdown" | "adf";
+export declare function formatFromExtension(filePath: string): DescriptionFormat | null;
+export declare const FILE_PATH_HINT: string;
+/**
+ * Resolve content that may be supplied inline or via a file. Exactly one of the two must
+ * be present. Returns either the resolved text plus the format to parse it with, or a
+ * user-facing error message.
+ */
+export declare function resolveContent(opts: {
+    inline?: string | undefined;
+    filePath?: string | undefined;
+    format?: DescriptionFormat | undefined;
+    /** Name of the inline argument, used in error messages, e.g. "description". */
+    inlineArgName: string;
+}): Promise<{
+    text: string;
+    format: DescriptionFormat;
+    source: string;
+} | {
+    error: string;
+}>;
 export type McpText = {
     type: "text";
     text: string;

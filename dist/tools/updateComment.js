@@ -1,7 +1,7 @@
-import { buildADF, withJiraError, respond } from "../utils.js";
+import { buildADF, withJiraError, respond, resolveContent, FILE_PATH_HINT } from "../utils.js";
 export const updateCommentDefinition = {
     name: "update-comment",
-    description: "Update an existing comment on a specific ticket",
+    description: "Update an existing comment on a specific ticket. Provide the text inline via `comment`, or point at a local file via `filePath` — the latter makes it easy to iterate on a long comment by editing the file and re-sending.",
     inputSchema: {
         type: "object",
         properties: {
@@ -12,25 +12,37 @@ export const updateCommentDefinition = {
             },
             comment: {
                 type: "string",
-                description: "New comment text. DO NOT escape newlines as backslash-n — use real newline characters only."
+                description: "New comment text. DO NOT escape newlines as backslash-n — use real newline characters only. Omit when using filePath."
+            },
+            filePath: {
+                type: "string",
+                description: FILE_PATH_HINT + " Alternative to comment."
             },
             commentFormat: {
                 type: "string",
                 enum: ["plain", "wiki", "markdown", "adf"],
-                description: "Format of the comment text: 'plain' (default) for simple text, 'wiki' for Jira wiki markup, 'markdown' for Markdown, 'adf' for raw ADF JSON"
+                description: "Format of the comment text: 'plain' (default for inline text) for simple text, 'wiki' for Jira wiki markup, 'markdown' for Markdown, 'adf' for raw ADF JSON. When filePath is used this defaults to the format implied by the file extension."
             }
         },
-        required: ["issueKey", "commentId", "comment"],
+        required: ["issueKey", "commentId"],
     },
 };
 export async function updateCommentHandler(jira, args) {
-    const { issueKey, commentId, comment, commentFormat = "plain" } = args;
+    const { issueKey, commentId, comment, filePath, commentFormat } = args;
     return withJiraError(async () => {
+        const content = await resolveContent({
+            inline: comment,
+            filePath,
+            format: commentFormat,
+            inlineArgName: "comment",
+        });
+        if ("error" in content)
+            return respond(content.error);
         await jira.issueComments.updateComment({
             issueIdOrKey: issueKey,
             id: commentId,
-            body: buildADF(comment, commentFormat),
+            body: buildADF(content.text, content.format),
         });
-        return respond(`Successfully updated comment ${commentId} on ${issueKey}`);
+        return respond(`Successfully updated comment ${commentId} on ${issueKey} from ${content.source} (format: ${content.format}, ${content.text.length} characters)`);
     }, `Error updating comment ${commentId} on ${issueKey}`);
 }

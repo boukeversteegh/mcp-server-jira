@@ -11,7 +11,7 @@
     "start:dev": "tsx --watch jira.ts",
     "fmt:check": "prettier --check .",
     "fmt": "prettier --write .",
-    "test": "tsc && node tests/linkTickets.test.mjs"
+    "test": "tsc && node tests/linkTickets.test.mjs && node tests/contentFile.test.mjs"
   },
   "keywords": [],
   "author": "",

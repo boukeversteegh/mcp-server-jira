@@ -13,6 +13,10 @@ export declare const addCommentDefinition: {
                 type: string;
                 description: string;
             };
+            filePath: {
+                type: string;
+                description: string;
+            };
             commentFormat: {
                 type: string;
                 enum: string[];
@@ -24,6 +28,7 @@ export declare const addCommentDefinition: {
 };
 export declare function addCommentHandler(jira: Version3Client, args: {
     issueKey: string;
-    comment: string;
+    comment?: string;
+    filePath?: string;
     commentFormat?: DescriptionFormat;
 }): Promise<McpResponse>;

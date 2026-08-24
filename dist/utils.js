@@ -2,7 +2,68 @@ import { WikiMarkupTransformer } from "@atlaskit/editor-wikimarkup-transformer";
 // @ts-ignore - known issue with defaultSchema export path in ESM
 import { defaultSchema } from "@atlaskit/adf-schema/dist/cjs/schema/default-schema.js";
 import { markdownToAdf } from "marklassian";
+import { readFile } from "node:fs/promises";
+import { extname, resolve } from "node:path";
 const wikiTransformer = new WikiMarkupTransformer(defaultSchema);
+/**
+ * Conventional file extensions per content format. Markdown uses .md, Jira wiki markup
+ * has no registered extension so the community conventions .wiki / .jira are accepted,
+ * and ADF is plain JSON.
+ */
+const EXTENSION_FORMATS = {
+    ".md": "markdown",
+    ".markdown": "markdown",
+    ".wiki": "wiki",
+    ".jira": "wiki",
+    ".json": "adf",
+    ".adf": "adf",
+    ".txt": "plain",
+    ".text": "plain",
+};
+export function formatFromExtension(filePath) {
+    return EXTENSION_FORMATS[extname(filePath).toLowerCase()] ?? null;
+}
+export const FILE_PATH_HINT = "Path to a local file (absolute, or relative to the server's working directory) whose contents are used as the text. " +
+    "Use this instead of passing the text inline to iterate on long content: edit the file and re-send. " +
+    "The format is inferred from the extension (.md/.markdown = markdown, .wiki/.jira = wiki, .json/.adf = adf, .txt = plain) " +
+    "unless it is given explicitly.";
+/**
+ * Resolve content that may be supplied inline or via a file. Exactly one of the two must
+ * be present. Returns either the resolved text plus the format to parse it with, or a
+ * user-facing error message.
+ */
+export async function resolveContent(opts) {
+    const { inline, filePath, format, inlineArgName } = opts;
+    if (typeof inline === "string" && filePath) {
+        return { error: `Error: pass either ${inlineArgName} or filePath, not both.` };
+    }
+    if (typeof inline !== "string" && !filePath) {
+        return { error: `Error: ${inlineArgName} or filePath is required.` };
+    }
+    if (!filePath) {
+        return { text: inline, format: format ?? "plain", source: "inline text" };
+    }
+    const resolved = resolve(filePath);
+    const inferred = formatFromExtension(filePath);
+    if (!format && !inferred) {
+        return {
+            error: `Error: cannot infer the format from "${filePath}". Use a conventional extension ` +
+                `(.md, .wiki, .json for ADF, .txt) or pass the format explicitly.`,
+        };
+    }
+    let text;
+    try {
+        text = await readFile(resolved, "utf8");
+    }
+    catch (e) {
+        const reason = e?.code === "ENOENT" ? "file not found" : (e?.message ?? String(e));
+        return { error: `Error reading ${resolved}: ${reason}` };
+    }
+    if (text.trim().length === 0) {
+        return { error: `Error: ${resolved} is empty. Refusing to replace existing content with nothing.` };
+    }
+    return { text, format: format ?? inferred, source: resolved };
+}
 export function respond(text) {
     return { content: [{ type: "text", text }], _meta: {} };
 }

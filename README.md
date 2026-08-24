@@ -14,7 +14,8 @@ The server provides the following tools:
 
 3. `add-comment`: Adds a comment to a specific ticket
    - Required parameter: `issueKey` (string)
-   - Required parameter: `comment` (string)
+   - Either `comment` (string) or `filePath` (string) — see [Editing content from a file](#editing-content-from-a-file)
+   - Optional parameter: `commentFormat` — `plain` (default), `wiki`, `markdown` or `adf`
 
 4. `link-tickets`: Links two tickets with a 'relates to' relationship
    - Required parameter: `sourceIssueKey` (string)
@@ -22,7 +23,8 @@ The server provides the following tools:
 
 5. `update-description`: Updates the description of a specific ticket
    - Required parameter: `issueKey` (string)
-   - Required parameter: `description` (string)
+   - Either `description` (string) or `filePath` (string) — see [Editing content from a file](#editing-content-from-a-file)
+   - Optional parameter: `descriptionFormat` — `plain` (default), `wiki`, `markdown` or `adf`
 
 6. `list-child-issues`: Gets all child issues of a parent ticket
    - Required parameter: `parentKey` (string)
@@ -131,6 +133,35 @@ To get detailed information about a specific ticket:
 </arguments>
 </use_mcp_tool>
 ```
+
+### Editing content from a file
+
+`update-description`, `update-comment` and `add-comment` accept `filePath` instead of inline
+text. This is meant for long content: keep the source in a file, edit that file, and re-send —
+no need to repost the whole body through the tool call each time.
+
+The format is inferred from the extension, so `descriptionFormat` / `commentFormat` can be
+omitted:
+
+| Extension            | Format     | Content                                  |
+| -------------------- | ---------- | ---------------------------------------- |
+| `.md`, `.markdown`   | `markdown` | Markdown (`## headings`, `**bold**`)     |
+| `.wiki`, `.jira`     | `wiki`     | Jira wiki markup (`h2.`, `{code}`)       |
+| `.json`, `.adf`      | `adf`      | Raw Atlassian Document Format JSON       |
+| `.txt`, `.text`      | `plain`    | Plain text, wrapped in a paragraph       |
+
+Passing the format explicitly overrides the extension, which is also how to use a file with any
+other extension. Paths are absolute or relative to the server's working directory.
+
+```json
+{
+  "issueKey": "PROJECT-123",
+  "filePath": "/abs/path/to/description.md"
+}
+```
+
+An empty file is rejected rather than wiping the existing description or comment, and passing
+both the inline text and `filePath` is an error.
 
 ## Development
 
