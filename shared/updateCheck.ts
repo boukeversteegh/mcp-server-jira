@@ -47,7 +47,8 @@ async function checkForUpdates(): Promise<void> {
   const count = parseInt(await git(["rev-list", "--count", "HEAD..@{u}"], repoRoot), 10);
   if (!Number.isFinite(count) || count < 1) return;
 
-  const subjects = await git(["log", "--oneline", "--no-decorate", "-n", "3", "HEAD..@{u}"], repoRoot);
+  // %cs is the commit date as YYYY-MM-DD — enough to judge how stale a clone is.
+  const subjects = await git(["log", "--format=%h %cs %s", "-n", "3", "HEAD..@{u}"], repoRoot);
 
   const commits = count === 1 ? "commit" : "commits";
   pendingNotice =

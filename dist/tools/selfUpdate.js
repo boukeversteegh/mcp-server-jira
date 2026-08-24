@@ -33,14 +33,16 @@ export async function selfUpdateHandler() {
         await git(["pull", "--ff-only"], repoRoot, PULL_TIMEOUT_MS);
         const after = await git(["rev-parse", "HEAD"], repoRoot);
         if (before === after) {
-            return respond(`Already up to date — ${repoRoot} is at ${before.slice(0, 7)}.`);
+            const date = await git(["log", "-1", "--format=%cs"], repoRoot);
+            return respond(`Already up to date — ${repoRoot} is at ${before.slice(0, 7)} (${date}).`);
         }
-        const log = await git(["log", "--oneline", "--no-decorate", `${before}..${after}`], repoRoot);
+        const log = await git(["log", "--format=%h %cs %s", `${before}..${after}`], repoRoot);
         const changed = await git(["diff", "--name-only", `${before}..${after}`], repoRoot);
         const depsChanged = changed
             .split("\n")
             .some((f) => f === "package.json" || f === "package-lock.json");
-        return respond(`Updated ${repoRoot} to ${after.slice(0, 7)}:\n\n` +
+        const date = await git(["log", "-1", "--format=%cs"], repoRoot);
+        return respond(`Updated ${repoRoot} to ${after.slice(0, 7)} (${date}):\n\n` +
             log
                 .split("\n")
                 .filter(Boolean)
