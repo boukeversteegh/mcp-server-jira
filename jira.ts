@@ -23,6 +23,9 @@ import { unlinkIssuesDefinition, unlinkIssuesHandler } from "./tools/unlinkIssue
 import { updateCommentDefinition, updateCommentHandler } from "./tools/updateComment.js";
 import { deleteCommentDefinition, deleteCommentHandler } from "./tools/deleteComment.js";
 import { getAttachmentDefinition, getAttachmentHandler } from "./tools/getAttachment.js";
+import { startUpdateCheck, consumeUpdateNotice, updateNoticeForError } from "./shared/updateCheck.js";
+import { selfUpdateDefinition, selfUpdateHandler } from "./tools/selfUpdate.js";
+import type { McpResponse } from "./utils.js";
 
 // Map to store custom field information (name to ID mapping)
 const customFieldsMap = new Map<string, string>();
@@ -94,13 +97,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     assignIssueDefinition,
     listJiraFiltersDefinition,
     listUsersDefinition,
-    getAttachmentDefinition
+    getAttachmentDefinition,
+    selfUpdateDefinition
   ]
 }));
 
 
 // Handle tool execution
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+async function dispatchTool(request: { params: { name: string; arguments?: unknown } }): Promise<McpResponse> {
   const { name, arguments: args } = request.params;
 
   switch (name) {
@@ -204,9 +208,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return await getAttachmentHandler(jira, args as { issueKey: string; attachmentId?: string; saveTo?: string });
     }
 
+    case "self-update": {
+      return await selfUpdateHandler();
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
+}
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  // The background update check has no channel of its own, so tool results carry the
+  // notice: once on success, and on every failure, since a broken call is exactly when
+  // a pending fix is worth knowing about.
+  let result: McpResponse;
+  try {
+    result = await dispatchTool(request);
+  } catch (e: any) {
+    // A thrown error has no content array to append to, so it goes in the message.
+    const notice = updateNoticeForError();
+    if (notice) {
+      throw new Error(`${e?.message ?? String(e)}\n\n${notice}`);
+    }
+    throw e;
+  }
+
+  const notice = result.isError ? updateNoticeForError() : consumeUpdateNotice();
+  if (notice) {
+    result.content = [...(result.content ?? []), { type: "text", text: notice }];
+  }
+
+  return result;
 });
 
 
@@ -221,6 +253,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     // Start the server
     const transport = new StdioServerTransport();
     await server.connect(transport);
+
+    // Fire-and-forget: never delays startup, never blocks a tool call.
+    startUpdateCheck();
   } catch (error: any) {
     console.error(`Error starting server: ${error.message}`);
     process.exit(1);
