@@ -23,6 +23,7 @@ import { unlinkIssuesDefinition, unlinkIssuesHandler } from "./tools/unlinkIssue
 import { updateCommentDefinition, updateCommentHandler } from "./tools/updateComment.js";
 import { deleteCommentDefinition, deleteCommentHandler } from "./tools/deleteComment.js";
 import { getAttachmentDefinition, getAttachmentHandler } from "./tools/getAttachment.js";
+import { exportContentDefinition, exportContentHandler } from "./tools/exportContent.js";
 import { startUpdateCheck, consumeUpdateNotice, updateNoticeForError } from "./shared/updateCheck.js";
 import { selfUpdateDefinition, selfUpdateHandler } from "./tools/selfUpdate.js";
 import type { McpResponse } from "./utils.js";
@@ -98,6 +99,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     listJiraFiltersDefinition,
     listUsersDefinition,
     getAttachmentDefinition,
+    exportContentDefinition,
     selfUpdateDefinition
   ]
 }));
@@ -207,6 +209,10 @@ async function dispatchTool(request: { params: { name: string; arguments?: unkno
 
     case "get-attachment": {
       return await getAttachmentHandler(jira, args as { issueKey: string; attachmentId?: string; saveTo?: string });
+    }
+
+    case "export-content": {
+      return await exportContentHandler(jira, args as { issueKey: string; commentId?: string; filePath?: string; format?: "markdown" | "adf" });
     }
 
     case "self-update": {

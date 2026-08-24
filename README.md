@@ -164,6 +164,24 @@ other extension. Paths are absolute or relative to the server's working director
 An empty file is rejected rather than wiping the existing description or comment, and passing
 both the inline text and `filePath` is an error.
 
+### Patching existing content
+
+To change part of a description or comment that already exists, export it first with
+`export-content`, edit the file, and re-upload it — no need to rewrite the whole thing:
+
+```json
+{ "issueKey": "PROJECT-123", "commentId": "54660", "filePath": "/tmp/pir-timeline.md" }
+```
+
+The export reports whether that content is safe to re-upload as markdown. Jira stores content
+as ADF, and constructs such as panels, mentions, status lozenges, media, tables, task lists and
+expands have no markdown equivalent — re-uploading markdown would silently drop them. When any
+are present the tool warns and lists them; export with `"format": "adf"` instead and patch the
+JSON, which always round-trips exactly (`.json` files are recognised as ADF on upload).
+
+Omit `filePath` to get the content back inline instead of writing a file. Comment IDs are shown
+by `get-ticket-details`.
+
 ## Development
 
 The server is written in TypeScript and uses:

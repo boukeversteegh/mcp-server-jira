@@ -23,6 +23,7 @@ import { unlinkIssuesDefinition, unlinkIssuesHandler } from "./tools/unlinkIssue
 import { updateCommentDefinition, updateCommentHandler } from "./tools/updateComment.js";
 import { deleteCommentDefinition, deleteCommentHandler } from "./tools/deleteComment.js";
 import { getAttachmentDefinition, getAttachmentHandler } from "./tools/getAttachment.js";
+import { exportContentDefinition, exportContentHandler } from "./tools/exportContent.js";
 import { startUpdateCheck, consumeUpdateNotice, updateNoticeForError } from "./shared/updateCheck.js";
 import { selfUpdateDefinition, selfUpdateHandler } from "./tools/selfUpdate.js";
 // Map to store custom field information (name to ID mapping)
@@ -84,6 +85,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         listJiraFiltersDefinition,
         listUsersDefinition,
         getAttachmentDefinition,
+        exportContentDefinition,
         selfUpdateDefinition
     ]
 }));
@@ -153,6 +155,9 @@ async function dispatchTool(request) {
         }
         case "get-attachment": {
             return await getAttachmentHandler(jira, args);
+        }
+        case "export-content": {
+            return await exportContentHandler(jira, args);
         }
         case "self-update": {
             return await selfUpdateHandler();
