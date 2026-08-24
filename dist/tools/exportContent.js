@@ -1,5 +1,6 @@
 import { respond, withJiraError } from "../utils.js";
 import { convertADFToMarkdown } from "../shared/helpers.js";
+import { contentVersion } from "../shared/contentVersion.js";
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 export const exportContentDefinition = {
@@ -72,8 +73,11 @@ export async function exportContentHandler(jira, args) {
             updated = issue?.fields?.updated;
             label = `description of ${issueKey}`;
         }
-        if (!adf)
-            return respond(`The ${label} is empty — nothing to export.`);
+        const version = contentVersion(adf ?? null);
+        if (!adf) {
+            return respond(`The ${label} is empty — nothing to export.\n` +
+                `Version: ${version} — pass this as expectedVersion to write content for the first time.`);
+        }
         const text = format === "adf" ? JSON.stringify(adf, null, 2) : convertADFToMarkdown(adf);
         const lossy = format === "markdown" ? [...findLossyTypes(adf)].sort() : [];
         const fidelity = format === "adf"
@@ -84,6 +88,7 @@ export async function exportContentHandler(jira, args) {
                     `Re-uploading the markdown would lose them — re-export with format: "adf" and patch the JSON instead.`;
         const header = [
             `Exported ${label} (format: ${format}, ${text.length} characters)`,
+            `Version: ${version} — pass this as expectedVersion when uploading the edit back.`,
             updated ? `Last updated in Jira: ${updated}` : null,
             fidelity,
         ]
@@ -100,8 +105,8 @@ export async function exportContentHandler(jira, args) {
             return respond(`Error writing ${target}: ${e?.message ?? String(e)}`);
         }
         const reupload = commentId
-            ? `update-comment with issueKey "${issueKey}", commentId "${commentId}" and filePath "${target}"`
-            : `update-description with issueKey "${issueKey}" and filePath "${target}"`;
+            ? `update-comment with issueKey "${issueKey}", commentId "${commentId}", filePath "${target}" and expectedVersion "${version}"`
+            : `update-description with issueKey "${issueKey}", filePath "${target}" and expectedVersion "${version}"`;
         return respond(`${header}\nWritten to: ${target}\nEdit that file, then re-upload with ${reupload}.`);
     }, `Error exporting content from ${issueKey}`);
 }

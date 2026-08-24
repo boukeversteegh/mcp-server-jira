@@ -134,7 +134,7 @@ async function dispatchTool(request: { params: { name: string; arguments?: unkno
     }
 
     case "update-comment": {
-      return await updateCommentHandler(jira, args as { issueKey: string; commentId: string; comment?: string; filePath?: string; commentFormat?: "plain" | "wiki" | "markdown" | "adf" });
+      return await updateCommentHandler(jira, args as { issueKey: string; commentId: string; comment?: string; filePath?: string; commentFormat?: "plain" | "wiki" | "markdown" | "adf"; expectedVersion?: string; force?: boolean });
     }
 
     case "delete-comment": {
@@ -142,7 +142,7 @@ async function dispatchTool(request: { params: { name: string; arguments?: unkno
     }
 
     case "update-description": {
-      return await updateDescriptionHandler(jira, args as { issueKey: string; description?: string; filePath?: string; descriptionFormat?: "plain" | "wiki" | "markdown" | "adf" });
+      return await updateDescriptionHandler(jira, args as { issueKey: string; description?: string; filePath?: string; descriptionFormat?: "plain" | "wiki" | "markdown" | "adf"; expectedVersion?: string; force?: boolean });
     }
 
     case "list-child-issues": {

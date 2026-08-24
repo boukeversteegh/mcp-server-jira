@@ -1,4 +1,5 @@
 import { convertADFToMarkdown, formatFieldValue, formatSection, hasMeaningfulValue } from "../shared/helpers.js";
+import { contentVersion } from "../shared/contentVersion.js";
 function formatFileSize(bytes) {
     if (bytes < 1024)
         return `${bytes} B`;
@@ -125,7 +126,7 @@ export async function getTicketDetailsHandler(jira, customFieldsMap, args) {
             else {
                 body = "No content";
             }
-            return `[${created}] ${author} (ID: ${comment.id}):\n${body}`;
+            return `[${created}] ${author} (ID: ${comment.id}, version: ${contentVersion(comment.body ?? null)}):\n${body}`;
         })
             .join("\n\n")
         : "No comments";
@@ -170,6 +171,7 @@ ${Object.entries(customFieldsData)
                     `Updated: ${issue.fields.updated || "Unknown"}`,
                     "",
                     formatSection("Description", description),
+                    `Description version: ${contentVersion(issue.fields.description ?? null)}`,
                     "",
                     formatSection("Related Issues", relatedIssues),
                     "",

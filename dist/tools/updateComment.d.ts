@@ -21,6 +21,14 @@ export declare const updateCommentDefinition: {
                 type: string;
                 description: string;
             };
+            expectedVersion: {
+                type: string;
+                description: string;
+            };
+            force: {
+                type: string;
+                description: string;
+            };
             commentFormat: {
                 type: string;
                 enum: string[];
@@ -36,4 +44,6 @@ export declare function updateCommentHandler(jira: Version3Client, args: {
     comment?: string;
     filePath?: string;
     commentFormat?: DescriptionFormat;
+    expectedVersion?: string;
+    force?: boolean;
 }): Promise<McpResponse>;

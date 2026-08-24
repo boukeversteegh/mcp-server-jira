@@ -17,6 +17,14 @@ export declare const updateDescriptionDefinition: {
                 type: string;
                 description: string;
             };
+            expectedVersion: {
+                type: string;
+                description: string;
+            };
+            force: {
+                type: string;
+                description: string;
+            };
             descriptionFormat: {
                 type: string;
                 enum: string[];
@@ -31,4 +39,6 @@ export declare function updateDescriptionHandler(jira: Version3Client, args: {
     description?: string;
     filePath?: string;
     descriptionFormat?: DescriptionFormat;
+    expectedVersion?: string;
+    force?: boolean;
 }): Promise<McpResponse>;

@@ -2,6 +2,7 @@ import { Version3Client } from "jira.js";
 import type { McpResponse } from "../utils.js";
 import { respond, withJiraError } from "../utils.js";
 import { convertADFToMarkdown } from "../shared/helpers.js";
+import { contentVersion } from "../shared/contentVersion.js";
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -82,7 +83,14 @@ export async function exportContentHandler(
       label = `description of ${issueKey}`;
     }
 
-    if (!adf) return respond(`The ${label} is empty — nothing to export.`);
+    const version = contentVersion(adf ?? null);
+
+    if (!adf) {
+      return respond(
+        `The ${label} is empty — nothing to export.\n` +
+        `Version: ${version} — pass this as expectedVersion to write content for the first time.`
+      );
+    }
 
     const text = format === "adf" ? JSON.stringify(adf, null, 2) : convertADFToMarkdown(adf);
 
@@ -97,6 +105,7 @@ export async function exportContentHandler(
 
     const header = [
       `Exported ${label} (format: ${format}, ${text.length} characters)`,
+      `Version: ${version} — pass this as expectedVersion when uploading the edit back.`,
       updated ? `Last updated in Jira: ${updated}` : null,
       fidelity,
     ]
@@ -115,8 +124,8 @@ export async function exportContentHandler(
     }
 
     const reupload = commentId
-      ? `update-comment with issueKey "${issueKey}", commentId "${commentId}" and filePath "${target}"`
-      : `update-description with issueKey "${issueKey}" and filePath "${target}"`;
+      ? `update-comment with issueKey "${issueKey}", commentId "${commentId}", filePath "${target}" and expectedVersion "${version}"`
+      : `update-description with issueKey "${issueKey}", filePath "${target}" and expectedVersion "${version}"`;
 
     return respond(`${header}\nWritten to: ${target}\nEdit that file, then re-upload with ${reupload}.`);
   }, `Error exporting content from ${issueKey}`);

@@ -182,6 +182,24 @@ JSON, which always round-trips exactly (`.json` files are recognised as ADF on u
 Omit `filePath` to get the content back inline instead of writing a file. Comment IDs are shown
 by `get-ticket-details`.
 
+### Content versions (optimistic concurrency)
+
+`update-description` and `update-comment` require `expectedVersion`: the version the edit was
+based on. If the content changed in Jira since, the update is refused instead of silently
+discarding that change — the same lock Confluence gets from its page version numbers.
+
+Jira has no version number of its own, and an issue's `updated` timestamp is not a substitute:
+it moves for any change to the issue, so transitions, labels and new comments would all reject
+description patches that never conflicted. The version is therefore a hash of the content
+itself (`v1-…`), so it changes exactly when the thing being patched changes.
+
+Versions come from `export-content` and from `get-ticket-details`, which reports
+`Description version:` and a `version:` for every comment — so a small inline edit needs no
+export round-trip. Empty content has a version too, which is what you pass to write a
+description for the first time.
+
+Pass `"force": true` to skip the check and overwrite regardless.
+
 ## Development
 
 The server is written in TypeScript and uses:

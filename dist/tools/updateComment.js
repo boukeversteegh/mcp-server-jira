@@ -1,4 +1,5 @@
 import { buildADF, withJiraError, respond, resolveContent, FILE_PATH_HINT } from "../utils.js";
+import { checkVersion, contentVersion, fetchContent } from "../shared/contentVersion.js";
 export const updateCommentDefinition = {
     name: "update-comment",
     description: "Update an existing comment on a specific ticket. Provide the text inline via `comment`, or point at a local file via `filePath` — the latter makes it easy to iterate on a long comment by editing the file and re-sending.",
@@ -18,6 +19,14 @@ export const updateCommentDefinition = {
                 type: "string",
                 description: FILE_PATH_HINT + " Alternative to comment."
             },
+            expectedVersion: {
+                type: "string",
+                description: "Content version the edit was based on, as reported by export-content. Required for every update (unless force is set): the update is refused if the comment changed in Jira since, so a concurrent edit is not silently overwritten."
+            },
+            force: {
+                type: "boolean",
+                description: "Skip the version check and overwrite whatever is in Jira. Defaults to false."
+            },
             commentFormat: {
                 type: "string",
                 enum: ["plain", "wiki", "markdown", "adf"],
@@ -28,7 +37,7 @@ export const updateCommentDefinition = {
     },
 };
 export async function updateCommentHandler(jira, args) {
-    const { issueKey, commentId, comment, filePath, commentFormat } = args;
+    const { issueKey, commentId, comment, filePath, commentFormat, expectedVersion, force } = args;
     return withJiraError(async () => {
         const content = await resolveContent({
             inline: comment,
@@ -38,11 +47,22 @@ export async function updateCommentHandler(jira, args) {
         });
         if ("error" in content)
             return respond(content.error);
+        const conflict = await checkVersion({
+            jira,
+            issueKey,
+            commentId,
+            expectedVersion,
+            force,
+        });
+        if (conflict)
+            return respond(conflict);
         await jira.issueComments.updateComment({
             issueIdOrKey: issueKey,
             id: commentId,
             body: buildADF(content.text, content.format),
         });
-        return respond(`Successfully updated comment ${commentId} on ${issueKey} from ${content.source} (format: ${content.format}, ${content.text.length} characters)`);
+        const newVersion = contentVersion((await fetchContent(jira, issueKey, commentId)).adf);
+        return respond(`Successfully updated comment ${commentId} on ${issueKey} from ${content.source} (format: ${content.format}, ${content.text.length} characters)\n` +
+            `New version: ${newVersion} — pass this as expectedVersion for the next patch.`);
     }, `Error updating comment ${commentId} on ${issueKey}`);
 }

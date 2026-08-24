@@ -1,6 +1,7 @@
 import { Version3Client } from "jira.js";
 import type { DescriptionFormat, McpResponse } from "../utils.js";
 import { buildADF, withJiraError, respond, resolveContent, FILE_PATH_HINT } from "../utils.js";
+import { checkVersion, contentVersion, fetchContent } from "../shared/contentVersion.js";
 
 export const updateDescriptionDefinition = {
   name: "update-description",
@@ -18,6 +19,15 @@ export const updateDescriptionDefinition = {
         type: "string",
         description: FILE_PATH_HINT + " Alternative to description."
       },
+      expectedVersion: {
+        type: "string",
+        description:
+          "Content version the edit was based on, as reported by export-content. Required for every update (unless force is set): the update is refused if the description changed in Jira since, so a concurrent edit is not silently overwritten."
+      },
+      force: {
+        type: "boolean",
+        description: "Skip the version check and overwrite whatever is in Jira. Defaults to false."
+      },
       descriptionFormat: {
         type: "string",
         enum: ["plain", "wiki", "markdown", "adf"],
@@ -31,9 +41,16 @@ export const updateDescriptionDefinition = {
 
 export async function updateDescriptionHandler(
   jira: Version3Client,
-  args: { issueKey: string; description?: string; filePath?: string; descriptionFormat?: DescriptionFormat }
+  args: {
+    issueKey: string;
+    description?: string;
+    filePath?: string;
+    descriptionFormat?: DescriptionFormat;
+    expectedVersion?: string;
+    force?: boolean;
+  }
 ): Promise<McpResponse> {
-  const { issueKey, description, filePath, descriptionFormat } = args;
+  const { issueKey, description, filePath, descriptionFormat, expectedVersion, force } = args;
 
   return withJiraError(async () => {
     const content = await resolveContent({
@@ -44,6 +61,14 @@ export async function updateDescriptionHandler(
     });
     if ("error" in content) return respond(content.error);
 
+    const conflict = await checkVersion({
+      jira,
+      issueKey,
+      expectedVersion,
+      force,
+    });
+    if (conflict) return respond(conflict);
+
     await jira.issues.editIssue({
       issueIdOrKey: issueKey,
       fields: {
@@ -51,8 +76,11 @@ export async function updateDescriptionHandler(
       }
     });
 
+    const newVersion = contentVersion((await fetchContent(jira, issueKey)).adf);
+
     return respond(
-      `Successfully updated description of ${issueKey} from ${content.source} (format: ${content.format}, ${content.text.length} characters)`
+      `Successfully updated description of ${issueKey} from ${content.source} (format: ${content.format}, ${content.text.length} characters)\n` +
+      `New version: ${newVersion} — pass this as expectedVersion for the next patch.`
     );
   }, `Error updating description of ${issueKey}`);
 }
