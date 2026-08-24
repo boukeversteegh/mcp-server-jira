@@ -33,11 +33,13 @@ export const FILE_PATH_HINT = "Path to a local file (absolute, or relative to th
  * user-facing error message.
  */
 export async function resolveContent(opts) {
-    const { inline, filePath, format, inlineArgName } = opts;
+    const { inline, filePath, format, inlineArgName, optional = false } = opts;
     if (typeof inline === "string" && filePath) {
         return { error: `Error: pass either ${inlineArgName} or filePath, not both.` };
     }
     if (typeof inline !== "string" && !filePath) {
+        if (optional)
+            return { text: "", format: format ?? "plain", source: "" };
         return { error: `Error: ${inlineArgName} or filePath is required.` };
     }
     if (!filePath) {

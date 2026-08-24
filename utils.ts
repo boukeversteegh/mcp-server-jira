@@ -46,13 +46,16 @@ export async function resolveContent(opts: {
   format?: DescriptionFormat | undefined;
   /** Name of the inline argument, used in error messages, e.g. "description". */
   inlineArgName: string;
+  /** When true, supplying neither is allowed and yields empty text (e.g. ticket creation). */
+  optional?: boolean | undefined;
 }): Promise<{ text: string; format: DescriptionFormat; source: string } | { error: string }> {
-  const { inline, filePath, format, inlineArgName } = opts;
+  const { inline, filePath, format, inlineArgName, optional = false } = opts;
 
   if (typeof inline === "string" && filePath) {
     return { error: `Error: pass either ${inlineArgName} or filePath, not both.` };
   }
   if (typeof inline !== "string" && !filePath) {
+    if (optional) return { text: "", format: format ?? "plain", source: "" };
     return { error: `Error: ${inlineArgName} or filePath is required.` };
   }
 

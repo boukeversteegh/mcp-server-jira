@@ -12,6 +12,8 @@ export declare function resolveContent(opts: {
     format?: DescriptionFormat | undefined;
     /** Name of the inline argument, used in error messages, e.g. "description". */
     inlineArgName: string;
+    /** When true, supplying neither is allowed and yields empty text (e.g. ticket creation). */
+    optional?: boolean | undefined;
 }): Promise<{
     text: string;
     format: DescriptionFormat;

@@ -1,8 +1,8 @@
-import { buildADF } from "../utils.js";
+import { buildADF, resolveContent, respond, FILE_PATH_HINT } from "../utils.js";
 import { createSubTicketCore } from "./createSubTicket.js";
 export const createTicketDefinition = {
     name: "create-ticket",
-    description: "Create a new ticket (regular issue or sub-task) with optional custom fields",
+    description: "Create a new ticket (regular issue or sub-task) with optional custom fields. The description can be given inline via `description` or read from a local file via `filePath`.",
     inputSchema: {
         type: "object",
         properties: {
@@ -10,12 +10,16 @@ export const createTicketDefinition = {
             summary: { type: "string" },
             description: {
                 type: "string",
-                description: "Description text. DO NOT escape newlines as backslash-n — use real newline characters only."
+                description: "Description text. DO NOT escape newlines as backslash-n — use real newline characters only. Omit when using filePath."
+            },
+            filePath: {
+                type: "string",
+                description: FILE_PATH_HINT + " Alternative to description."
             },
             descriptionFormat: {
                 type: "string",
                 enum: ["plain", "wiki", "markdown", "adf"],
-                description: "Format of the description text: 'plain' (default) for simple text, 'wiki' for Jira wiki markup, 'markdown' for Markdown, 'adf' for raw ADF JSON"
+                description: "Format of the description text: 'plain' (default for inline text) for simple text, 'wiki' for Jira wiki markup, 'markdown' for Markdown, 'adf' for raw ADF JSON. When filePath is used this defaults to the format implied by the file extension."
             },
             issueType: {
                 type: "string",
@@ -35,11 +39,28 @@ export const createTicketDefinition = {
     }
 };
 export async function createTicketHandler(jira, customFieldsMap, args) {
-    const { projectKey, summary, description = "", descriptionFormat = "plain", issueType = "Task", parentKey, fields = {} } = args;
+    const { projectKey, summary, filePath, issueType = "Task", parentKey, fields = {} } = args;
+    const content = await resolveContent({
+        inline: args.description,
+        filePath,
+        format: args.descriptionFormat,
+        inlineArgName: "description",
+        optional: true,
+    });
+    if ("error" in content)
+        return respond(content.error);
+    const { text: description, format: descriptionFormat, source: descriptionSource } = content;
     try {
         // If parentKey is provided, reuse sub-ticket creation logic
         if (parentKey) {
-            return await createSubTicketCore(jira, { parentKey, summary, description, descriptionFormat, issueType });
+            return await createSubTicketCore(jira, {
+                parentKey,
+                summary,
+                description,
+                descriptionFormat,
+                issueType,
+                descriptionSource: descriptionSource || undefined,
+            });
         }
         // Get available issue types for the project
         const createMeta = await jira.issues.getCreateIssueMeta({
@@ -172,7 +193,9 @@ export async function createTicketHandler(jira, customFieldsMap, args) {
             content: [
                 {
                     type: "text",
-                    text: `Created ${key} in project ${projectKey}${additionalFieldsText}${urlText}`
+                    text: `Created ${key} in project ${projectKey}${additionalFieldsText}${urlText}${descriptionSource
+                        ? `\nDescription from ${descriptionSource} (format: ${descriptionFormat}, ${description.length} characters)`
+                        : ""}`
                 }
             ],
             _meta: {}

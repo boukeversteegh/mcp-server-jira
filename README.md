@@ -32,7 +32,7 @@ The server provides the following tools:
 7. `create-sub-ticket`: Creates a sub-ticket (child issue) for a parent ticket
    - Required parameter: `parentKey` (string)
    - Required parameter: `summary` (string)
-   - Optional parameter: `description` (string)
+   - Optional parameter: `description` (string) or `filePath` (string) — see [Editing content from a file](#editing-content-from-a-file)
    - Optional parameter: `issueType` (string) - The name of the sub-task issue type (e.g., 'Sub-task')
 
 ## Setup
@@ -136,9 +136,10 @@ To get detailed information about a specific ticket:
 
 ### Editing content from a file
 
-`update-description`, `update-comment` and `add-comment` accept `filePath` instead of inline
-text. This is meant for long content: keep the source in a file, edit that file, and re-send —
-no need to repost the whole body through the tool call each time.
+`update-description`, `update-comment`, `add-comment`, `create-ticket` and `create-sub-ticket`
+accept `filePath` instead of inline text. This is meant for long content: keep the source in a
+file, edit that file, and re-send — no need to repost the whole body through the tool call each
+time. On the two create tools the description stays optional, so omitting both is still fine.
 
 The format is inferred from the extension, so `descriptionFormat` / `commentFormat` can be
 omitted:

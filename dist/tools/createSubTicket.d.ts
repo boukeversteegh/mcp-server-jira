@@ -16,6 +16,10 @@ export declare const createSubTicketDefinition: {
                 type: string;
                 description: string;
             };
+            filePath: {
+                type: string;
+                description: string;
+            };
             descriptionFormat: {
                 type: string;
                 enum: string[];
@@ -35,11 +39,14 @@ export declare function createSubTicketCore(jira: Version3Client, args: {
     description?: string;
     descriptionFormat?: DescriptionFormat;
     issueType?: string;
+    /** Where the description came from, for the result message (e.g. a file path). */
+    descriptionSource?: string | undefined;
 }): Promise<McpResponse>;
 export declare function createSubTicketHandler(jira: Version3Client, args: {
     parentKey: string;
     summary: string;
     description?: string;
+    filePath?: string;
     descriptionFormat?: DescriptionFormat;
     issueType?: string;
 }): Promise<McpResponse>;

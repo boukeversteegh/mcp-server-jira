@@ -57,5 +57,11 @@ await check("inline text honours explicit format", { inline: "# hi", format: "ma
 await check("both inline and file errors", { inline: "hi", filePath: md }, { error: "not both" });
 await check("neither inline nor file errors", {}, { error: "is required" });
 
+// optional mode, used by ticket creation where a description may be omitted entirely
+await check("optional: neither is allowed", { optional: true }, { text: "", format: "plain", source: "" });
+await check("optional: file still read", { optional: true, filePath: md }, { format: "markdown" });
+await check("optional: both still errors", { optional: true, inline: "hi", filePath: md }, { error: "not both" });
+await check("optional: empty file still refused", { optional: true, filePath: empty }, { error: "Refusing to replace" });
+
 console.log(failures === 0 ? "\nAll checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);

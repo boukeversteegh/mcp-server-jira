@@ -149,7 +149,7 @@ async function dispatchTool(request: { params: { name: string; arguments?: unkno
 
 
     case "create-sub-ticket": {
-      return await createSubTicketHandler(jira, args as { parentKey: string; summary: string; description?: string; descriptionFormat?: "plain" | "wiki" | "markdown" | "adf"; issueType?: string });
+      return await createSubTicketHandler(jira, args as { parentKey: string; summary: string; description?: string; filePath?: string; descriptionFormat?: "plain" | "wiki" | "markdown" | "adf"; issueType?: string });
     }
 
     case "link-issues": {
@@ -161,6 +161,7 @@ async function dispatchTool(request: { params: { name: string; arguments?: unkno
         projectKey: string;
         summary: string;
         description?: string;
+        filePath?: string;
         descriptionFormat?: "plain" | "wiki" | "markdown" | "adf";
         issueType?: string;
         parentKey?: string;

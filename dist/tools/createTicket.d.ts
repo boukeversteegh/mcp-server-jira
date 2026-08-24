@@ -16,6 +16,10 @@ export declare const createTicketDefinition: {
                 type: string;
                 description: string;
             };
+            filePath: {
+                type: string;
+                description: string;
+            };
             descriptionFormat: {
                 type: string;
                 enum: string[];
@@ -42,6 +46,7 @@ export declare function createTicketHandler(jira: Version3Client, customFieldsMa
     projectKey: string;
     summary: string;
     description?: string;
+    filePath?: string;
     descriptionFormat?: DescriptionFormat;
     issueType?: string;
     parentKey?: string;
