@@ -58,19 +58,26 @@ export async function checkVersion(opts: {
 
   if (force) return null;
 
+  const { adf, updated } = await fetchContent(jira, issueKey, commentId);
+  const current = contentVersion(adf);
+  const when = updated ? `, last updated ${updated}` : "";
+
+  // Writing into emptiness needs no version. Omitting it asserts "there is nothing here yet",
+  // which the server can check itself, so a first write does not have to obtain the version of
+  // empty content first. The assertion is still enforced: a description written meanwhile is
+  // refused the same as any other conflict.
   if (!expectedVersion) {
+    if (!adf) return null;
     return (
-      `Error: updating the ${what} requires expectedVersion, so an edit made in Jira meanwhile ` +
-      `cannot be silently overwritten. Run export-content to get the current version (it reports ` +
-      `one even when the content is empty), or pass force: true to overwrite regardless.`
+      `Error: the ${what} is not empty (version ${current}${when}), so updating it requires ` +
+      `expectedVersion — otherwise an edit made in Jira meanwhile would be silently overwritten. ` +
+      `Run export-content to get the current content and version, or pass force: true to ` +
+      `overwrite regardless.`
     );
   }
 
-  const { adf, updated } = await fetchContent(jira, issueKey, commentId);
-  const current = contentVersion(adf);
   if (current === expectedVersion.trim()) return null;
 
-  const when = updated ? `, last updated ${updated}` : "";
   return (
     `Error: the ${what} changed in Jira since version ${expectedVersion} was issued (it is now ${current}${when}). ` +
     `Uploading would discard that change. Re-run export-content to get the current content, re-apply ` +

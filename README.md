@@ -184,9 +184,10 @@ by `get-ticket-details`.
 
 ### Content versions (optimistic concurrency)
 
-`update-description` and `update-comment` require `expectedVersion`: the version the edit was
-based on. If the content changed in Jira since, the update is refused instead of silently
-discarding that change — the same lock Confluence gets from its page version numbers.
+`update-description` and `update-comment` require `expectedVersion` whenever the content being
+replaced is not empty: the version the edit was based on. If the content changed in Jira since,
+the update is refused instead of silently discarding that change — the same lock Confluence gets
+from its page version numbers.
 
 Jira has no version number of its own, and an issue's `updated` timestamp is not a substitute:
 it moves for any change to the issue, so transitions, labels and new comments would all reject
@@ -195,8 +196,13 @@ itself (`v1-…`), so it changes exactly when the thing being patched changes.
 
 Versions come from `export-content` and from `get-ticket-details`, which reports
 `Description version:` and a `version:` for every comment — so a small inline edit needs no
-export round-trip. Empty content has a version too, which is what you pass to write a
-description for the first time.
+export round-trip.
+
+**Writing a description for the first time needs no version.** Omitting `expectedVersion` is
+itself the assertion "there is nothing here yet", which the server checks: the write goes through
+when the description is still empty, and is refused — naming the version now in Jira — when
+someone wrote one meanwhile. So the lock covers the first write as well, without the caller
+having to fetch the version of empty content.
 
 Pass `"force": true` to skip the check and overwrite regardless.
 

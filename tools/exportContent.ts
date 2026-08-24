@@ -88,7 +88,8 @@ export async function exportContentHandler(
     if (!adf) {
       return respond(
         `The ${label} is empty — nothing to export.\n` +
-        `Version: ${version} — pass this as expectedVersion to write content for the first time.`
+        `Writing content for the first time needs no expectedVersion: omitting it asserts the ` +
+        `content is still empty, and the write is refused if something was added meanwhile.`
       );
     }
 

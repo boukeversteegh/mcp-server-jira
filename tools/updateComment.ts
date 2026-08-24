@@ -26,7 +26,7 @@ export const updateCommentDefinition = {
       expectedVersion: {
         type: "string",
         description:
-          "Content version the edit was based on, as reported by export-content. Required for every update (unless force is set): the update is refused if the comment changed in Jira since, so a concurrent edit is not silently overwritten."
+          "Content version the edit was based on, as reported by export-content and by get-ticket-details. Required (unless force is set): the update is refused if the comment changed in Jira since, so a concurrent edit is not silently overwritten."
       },
       force: {
         type: "boolean",

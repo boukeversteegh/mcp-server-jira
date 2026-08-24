@@ -22,7 +22,7 @@ export const updateDescriptionDefinition = {
       expectedVersion: {
         type: "string",
         description:
-          "Content version the edit was based on, as reported by export-content. Required for every update (unless force is set): the update is refused if the description changed in Jira since, so a concurrent edit is not silently overwritten."
+          "Content version the edit was based on, as reported by export-content and by get-ticket-details. Required whenever the description already has content (unless force is set): the update is refused if it changed in Jira since, so a concurrent edit is not silently overwritten. Omit it to write a description for the first time — that asserts the description is still empty, and is refused if one was written meanwhile."
       },
       force: {
         type: "boolean",

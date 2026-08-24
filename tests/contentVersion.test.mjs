@@ -32,9 +32,20 @@ await check("empty content still has a version", () => {
   assert(contentVersion(null) !== contentVersion(doc("a")), "empty matches non-empty");
 });
 
-await check("missing expectedVersion is refused", async () => {
+await check("missing expectedVersion is refused when content exists", async () => {
   const err = await checkVersion({ jira: fakeJira(doc("a")), issueKey: "X-1" });
   assert(err?.includes("requires expectedVersion"), `expected a refusal, got: ${err}`);
+  assert(err?.includes(contentVersion(doc("a"))), "current version not named");
+});
+
+await check("missing expectedVersion is allowed when content is empty", async () => {
+  const err = await checkVersion({ jira: fakeJira(null), issueKey: "X-1" });
+  assert(err === null, `a first write should need no version, got: ${err}`);
+});
+
+await check("a first write is refused once content was added meanwhile", async () => {
+  const err = await checkVersion({ jira: fakeJira(doc("someone else")), issueKey: "X-1" });
+  assert(err?.includes("not empty"), `expected an emptiness conflict, got: ${err}`);
 });
 
 await check("missing expectedVersion is allowed with force", async () => {
