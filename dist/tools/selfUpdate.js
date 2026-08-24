@@ -20,7 +20,9 @@ export async function selfUpdateHandler() {
         return fail("Error: this server is not running from a git repository, so it cannot update itself. Reinstall it with `git clone`.");
     }
     try {
-        const dirty = await git(["status", "--porcelain"], repoRoot);
+        // Tracked changes only: untracked files (a local .claude/, scratch notes) never
+        // block a fast-forward, so refusing over them would be a false alarm.
+        const dirty = await git(["status", "--porcelain", "--untracked-files=no"], repoRoot);
         if (dirty) {
             const files = dirty.split("\n").slice(0, 10).join("\n");
             const more = dirty.split("\n").length > 10 ? `\n…and more` : "";
