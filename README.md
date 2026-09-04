@@ -164,6 +164,12 @@ other extension. Paths are absolute or relative to the server's working director
 An empty file is rejected rather than wiping the existing description or comment, and passing
 both the inline text and `filePath` is an error.
 
+Markdown constructs that end up empty — a table cell (header or body), a list item, a
+blockquote, a fenced code block — are repaired into valid ADF before sending. Jira's validator
+refuses an empty `tableHeader` / `tableCell` / `listItem` / `blockquote` with a bare
+`400 INVALID_INPUT` that names the *field* (`errors.comment`) and not the offending node, so
+without this repair the whole comment looks rejected while a single empty cell is at fault.
+
 ### Patching existing content
 
 To change part of a description or comment that already exists, export it first with

@@ -161,6 +161,50 @@ function stripNulls(obj: any): any {
 }
 
 /**
+ * ADF node types whose `content` array must contain at least one block node. Jira's
+ * validator rejects the document outright when one of these is empty, with a generic
+ * `400 INVALID_INPUT` naming the *field* (e.g. `errors.comment`) rather than the node,
+ * which makes the real cause very hard to spot.
+ *
+ * The markdown converter (marklassian) guards `tableCell` but not `tableHeader`,
+ * `listItem` or `blockquote`, so a markdown table with an empty header cell
+ * (`| | Count | Tenants |`) produces `{ type: "tableHeader", content: [] }` and the
+ * whole comment is refused. An empty paragraph is the canonical valid filler.
+ */
+const ADF_NEEDS_BLOCK_CONTENT = new Set(["tableHeader", "tableCell", "listItem", "blockquote", "panel"]);
+
+/**
+ * Make converter output safe for the Jira API:
+ *  - drop empty text nodes (`{ type: "text", text: "" }`), which ADF forbids outright
+ *    (an empty fenced code block produces one);
+ *  - give containers that require block content an empty paragraph when they ended up
+ *    with nothing, instead of an empty `content` array.
+ *
+ * Returns null when the node itself has to disappear.
+ */
+function sanitizeAdfNode(node: any): any | null {
+  if (node === null || typeof node !== "object") return node;
+
+  if (node.type === "text" && !node.text) return null;
+
+  if (Array.isArray(node.content)) {
+    node.content = node.content.map(sanitizeAdfNode).filter((n: any) => n !== null);
+  }
+
+  if (ADF_NEEDS_BLOCK_CONTENT.has(node.type) && !node.content?.length) {
+    node.content = [{ type: "paragraph", content: [] }];
+  }
+
+  return node;
+}
+
+/** Apply {@link sanitizeAdfNode} to a whole document, in place. */
+export function sanitizeAdf<T>(doc: T): T {
+  sanitizeAdfNode(doc);
+  return doc;
+}
+
+/**
  * Build ADF (Atlassian Document Format) from text.
  *
  * @param text - The text content to convert
@@ -182,7 +226,9 @@ export function buildADF(text: string, format: DescriptionFormat = "plain"): obj
       const adf = markdownToAdf(text);
       // Ensure version is set
       if (!adf.version) adf.version = 1;
-      return adf;
+      // Repair nodes the converter can leave empty (e.g. an empty table header cell),
+      // which Jira would otherwise reject with a bare 400 INVALID_INPUT.
+      return sanitizeAdf(adf);
     }
     case "adf": {
       const parsed = JSON.parse(text);

@@ -36,6 +36,8 @@ export declare function validateArray(name: string, value: unknown): string | nu
 export declare function validateString(name: string, value: unknown): string | null;
 export declare function formatJiraError(prefix: string, error: any): string;
 export declare function withJiraError(action: () => Promise<McpResponse>, prefix?: string): Promise<McpResponse>;
+/** Apply {@link sanitizeAdfNode} to a whole document, in place. */
+export declare function sanitizeAdf<T>(doc: T): T;
 /**
  * Build ADF (Atlassian Document Format) from text.
  *
