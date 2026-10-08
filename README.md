@@ -98,6 +98,12 @@ You'll need to set up the following environment variables in your MCP settings:
 3. `JIRA_API_TOKEN`: Your JIRA API token
    - You can generate an API token from your [Atlassian Account Settings](https://id.atlassian.com/manage-profile/security/api-tokens)
 
+Optional:
+
+- `JIRA_SMARTLINK_PROJECTS`: comma-separated project keys (e.g. `ABC,XYZ`) whose bare issue keys
+  in markdown and in `add-smartlinks` become smart-link cards — see [Smart-links](#smart-links).
+  Without it, bare keys stay text; links are converted either way.
+
 ## Usage
 
 Once configured, you can use the tools through the MCP interface in Claude:
@@ -169,6 +175,47 @@ blockquote, a fenced code block — are repaired into valid ADF before sending. 
 refuses an empty `tableHeader` / `tableCell` / `listItem` / `blockquote` with a bare
 `400 INVALID_INPUT` that names the *field* (`errors.comment`) and not the offending node, so
 without this repair the whole comment looks rejected while a single empty cell is at fault.
+
+### Smart-links
+
+Jira shows an issue or Confluence page as a card — key, summary and a live status chip — only
+when the document holds an `inlineCard` node for it. A markdown or wiki link to the same URL is an
+ordinary link, however it is written. The card holds nothing but the URL (Jira looks up the rest
+when it renders), so converting is a pure transformation and needs no extra API calls.
+
+**New markdown** — in `add-comment`, `update-comment`, `update-description`, `create-ticket` and
+`create-sub-ticket`, a link to an issue (`/browse/ABC-123`) or a Confluence page (`/wiki/spaces/…`,
+`/wiki/pages/…`) on the site in `JIRA_HOST` is written as a card. Its link text is dropped, since
+the card shows the summary itself. Links elsewhere stay links.
+
+```markdown
+Caused by [ABC-123: Export misses cancelled rows](https://your-company.atlassian.net/browse/ABC-123).
+```
+
+With `JIRA_SMARTLINK_PROJECTS` set, a bare key of one of those projects (`ABC-123`) becomes a card
+too. Raw ADF, wiki and plain text are uploaded as given.
+
+**Content that is already in Jira** — `add-smartlinks` patches a description or a comment in
+place: links and bare URLs to issues and pages on this site, and bare keys of the configured
+projects, become cards; other bare URLs become links. Everything else round-trips untouched, so it
+is the way to fix someone else's text without rewriting it. It reads, patches and writes with the
+[version check](#content-versions-optimistic-concurrency) in between, and reports every change:
+
+```json
+{ "issueKey": "PROJECT-123", "commentId": "54660", "dryRun": true }
+```
+
+| Parameter   | Effect                                                                           |
+| ----------- | -------------------------------------------------------------------------------- |
+| `commentId` | Patch that comment instead of the description                                    |
+| `dryRun`    | Report what would change, write nothing                                          |
+| `projects`  | Project keys for bare-key conversion; replaces `JIRA_SMARTLINK_PROJECTS`         |
+| `prRepo`    | `owner/repo`: a bare `#1234` becomes a link to that repository's pull request    |
+
+Both paths leave inline code, code blocks and a key inside a URL alone, and turn a link split over
+several text nodes (bold inside its text, say) into one card. A key glued to a word —
+`ABC-123-class`, `hotfix-ABC-123` — is reported instead of converted, because a card in the middle
+of a word reads badly: rephrase the sentence and run it again.
 
 ### Patching existing content
 

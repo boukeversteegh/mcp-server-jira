@@ -1,6 +1,7 @@
 import { Version3Client } from "jira.js";
 import type { DescriptionFormat, McpResponse } from "../utils.js";
-import { buildADF, resolveContent, respond, FILE_PATH_HINT } from "../utils.js";
+import { buildADFWithReport, resolveContent, respond, FILE_PATH_HINT } from "../utils.js";
+import { summarizeSmartLinks } from "../shared/smartLinks.js";
 
 export const createSubTicketDefinition = {
   name: "create-sub-ticket",
@@ -70,13 +71,14 @@ export async function createSubTicketCore(
       ? issueType
       : availableIssueTypes[0] || "Sub-task";
 
+    const built = description ? buildADFWithReport(description, descriptionFormat) : null;
     const createIssuePayload: any = {
       fields: {
         summary,
         parent: { key: parentKey },
         project: { id: parentIssue.fields.project.id },
         issuetype: { name: finalIssueType },
-        ...(description ? { description: buildADF(description, descriptionFormat) } : {}),
+        ...(built ? { description: built.adf } : {}),
       },
     };
 
@@ -90,7 +92,12 @@ export async function createSubTicketCore(
       : "";
 
     return {
-      content: [{ type: "text", text: `Created ${key} under ${parentKey}${urlText}${sourceText}` }],
+      content: [
+        {
+          type: "text",
+          text: `Created ${key} under ${parentKey}${urlText}${sourceText}${summarizeSmartLinks(built?.smartLinks ?? null)}`,
+        },
+      ],
       _meta: {},
     };
   } catch (error: any) {

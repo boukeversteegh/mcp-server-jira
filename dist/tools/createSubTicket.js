@@ -1,4 +1,5 @@
-import { buildADF, resolveContent, respond, FILE_PATH_HINT } from "../utils.js";
+import { buildADFWithReport, resolveContent, respond, FILE_PATH_HINT } from "../utils.js";
+import { summarizeSmartLinks } from "../shared/smartLinks.js";
 export const createSubTicketDefinition = {
     name: "create-sub-ticket",
     description: "Create a sub-ticket (child issue) for a parent ticket. The description can be given inline via `description` or read from a local file via `filePath`.",
@@ -47,13 +48,14 @@ export async function createSubTicketCore(jira, args) {
         const finalIssueType = availableIssueTypes.includes(issueType)
             ? issueType
             : availableIssueTypes[0] || "Sub-task";
+        const built = description ? buildADFWithReport(description, descriptionFormat) : null;
         const createIssuePayload = {
             fields: {
                 summary,
                 parent: { key: parentKey },
                 project: { id: parentIssue.fields.project.id },
                 issuetype: { name: finalIssueType },
-                ...(description ? { description: buildADF(description, descriptionFormat) } : {}),
+                ...(built ? { description: built.adf } : {}),
             },
         };
         const created = await jira.issues.createIssue(createIssuePayload);
@@ -63,7 +65,12 @@ export async function createSubTicketCore(jira, args) {
             ? `\nDescription from ${descriptionSource} (format: ${descriptionFormat}, ${description.length} characters)`
             : "";
         return {
-            content: [{ type: "text", text: `Created ${key} under ${parentKey}${urlText}${sourceText}` }],
+            content: [
+                {
+                    type: "text",
+                    text: `Created ${key} under ${parentKey}${urlText}${sourceText}${summarizeSmartLinks(built?.smartLinks ?? null)}`,
+                },
+            ],
             _meta: {},
         };
     }

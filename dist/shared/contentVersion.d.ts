@@ -4,10 +4,12 @@ export declare function contentVersion(adf: any): string;
 /**
  * Current ADF of a description or a single comment, with the timestamp Jira reports for it.
  * The timestamp is for humans reading the message; the lock itself is the content version.
+ * For a comment, its visibility restriction comes along, so a rewrite can keep it.
  */
 export declare function fetchContent(jira: Version3Client, issueKey: string, commentId?: string | undefined): Promise<{
     adf: any;
     updated?: string;
+    visibility?: any;
 }>;
 /**
  * Enforce the version lock before an update. Returns an error message when the caller must
