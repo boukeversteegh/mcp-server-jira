@@ -142,7 +142,7 @@ function isTextFilename(filename) {
     const ext = path.extname(filename).toLowerCase();
     return textExtensions.includes(ext);
 }
-function formatFileSize(bytes) {
+export function formatFileSize(bytes) {
     if (bytes < 1024)
         return `${bytes} B`;
     if (bytes < 1024 * 1024)

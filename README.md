@@ -35,6 +35,10 @@ The server provides the following tools:
    - Optional parameter: `description` (string) or `filePath` (string) — see [Editing content from a file](#editing-content-from-a-file)
    - Optional parameter: `issueType` (string) - The name of the sub-task issue type (e.g., 'Sub-task')
 
+8. `add-attachment`: Uploads local files as attachments to a ticket
+   - Required parameter: `issueKey` (string)
+   - Required parameter: `filePaths` (string array) — every path is checked before any upload, so a bad path uploads nothing
+
 ## Setup
 
 1. Install dependencies:

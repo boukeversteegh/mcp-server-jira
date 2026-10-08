@@ -23,6 +23,7 @@ import { unlinkIssuesDefinition, unlinkIssuesHandler } from "./tools/unlinkIssue
 import { updateCommentDefinition, updateCommentHandler } from "./tools/updateComment.js";
 import { deleteCommentDefinition, deleteCommentHandler } from "./tools/deleteComment.js";
 import { getAttachmentDefinition, getAttachmentHandler } from "./tools/getAttachment.js";
+import { addAttachmentDefinition, addAttachmentHandler } from "./tools/addAttachment.js";
 import { exportContentDefinition, exportContentHandler } from "./tools/exportContent.js";
 import { startUpdateCheck, consumeUpdateNotice, updateNoticeForError } from "./shared/updateCheck.js";
 import { selfUpdateDefinition, selfUpdateHandler } from "./tools/selfUpdate.js";
@@ -85,6 +86,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         listJiraFiltersDefinition,
         listUsersDefinition,
         getAttachmentDefinition,
+        addAttachmentDefinition,
         exportContentDefinition,
         selfUpdateDefinition
     ]
@@ -155,6 +157,9 @@ async function dispatchTool(request) {
         }
         case "get-attachment": {
             return await getAttachmentHandler(jira, args);
+        }
+        case "add-attachment": {
+            return await addAttachmentHandler(jira, args);
         }
         case "export-content": {
             return await exportContentHandler(jira, args);

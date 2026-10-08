@@ -1,6 +1,6 @@
 import { Version3Client } from "jira.js";
 import type { McpResponse } from "../utils.js";
-export declare const getAttachmentDefinition: {
+export declare const addAttachmentDefinition: {
     name: string;
     description: string;
     inputSchema: {
@@ -10,21 +10,18 @@ export declare const getAttachmentDefinition: {
                 type: string;
                 description: string;
             };
-            attachmentId: {
+            filePaths: {
                 type: string;
-                description: string;
-            };
-            saveTo: {
-                type: string;
+                items: {
+                    type: string;
+                };
                 description: string;
             };
         };
         required: string[];
     };
 };
-export declare function getAttachmentHandler(jira: Version3Client, args: {
+export declare function addAttachmentHandler(jira: Version3Client, args: {
     issueKey: string;
-    attachmentId?: string;
-    saveTo?: string;
+    filePaths: string[];
 }): Promise<McpResponse>;
-export declare function formatFileSize(bytes: number): string;
