@@ -25,11 +25,12 @@ export function contentVersion(adf) {
 /**
  * Current ADF of a description or a single comment, with the timestamp Jira reports for it.
  * The timestamp is for humans reading the message; the lock itself is the content version.
+ * For a comment, its visibility restriction comes along, so a rewrite can keep it.
  */
 export async function fetchContent(jira, issueKey, commentId) {
     if (commentId) {
         const comment = await jira.issueComments.getComment({ issueIdOrKey: issueKey, id: commentId });
-        return { adf: comment?.body ?? null, updated: comment?.updated ?? comment?.created };
+        return { adf: comment?.body ?? null, updated: comment?.updated ?? comment?.created, visibility: comment?.visibility };
     }
     const issue = await jira.issues.getIssue({ issueIdOrKey: issueKey, fields: ["description", "updated"] });
     return { adf: issue?.fields?.description ?? null, updated: issue?.fields?.updated };

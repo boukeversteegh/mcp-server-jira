@@ -1,6 +1,7 @@
 import { Version3Client } from "jira.js";
 import type { DescriptionFormat, McpResponse } from "../utils.js";
-import { buildADF, withJiraError, respond, resolveContent, FILE_PATH_HINT } from "../utils.js";
+import { buildADFWithReport, withJiraError, respond, resolveContent, FILE_PATH_HINT } from "../utils.js";
+import { summarizeSmartLinks } from "../shared/smartLinks.js";
 import { checkVersion, contentVersion, fetchContent } from "../shared/contentVersion.js";
 
 export const updateDescriptionDefinition = {
@@ -69,10 +70,11 @@ export async function updateDescriptionHandler(
     });
     if (conflict) return respond(conflict);
 
+    const { adf, smartLinks } = buildADFWithReport(content.text, content.format);
     await jira.issues.editIssue({
       issueIdOrKey: issueKey,
       fields: {
-        description: buildADF(content.text, content.format)
+        description: adf
       }
     });
 
@@ -80,7 +82,8 @@ export async function updateDescriptionHandler(
 
     return respond(
       `Successfully updated description of ${issueKey} from ${content.source} (format: ${content.format}, ${content.text.length} characters)\n` +
-      `New version: ${newVersion} — pass this as expectedVersion for the next patch.`
+      `New version: ${newVersion} — pass this as expectedVersion for the next patch.` +
+      summarizeSmartLinks(smartLinks)
     );
   }, `Error updating description of ${issueKey}`);
 }

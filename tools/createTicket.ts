@@ -1,6 +1,7 @@
 import { Version3Client } from "jira.js";
 import type { DescriptionFormat, McpResponse } from "../utils.js";
-import { buildADF, resolveContent, respond, FILE_PATH_HINT } from "../utils.js";
+import { buildADFWithReport, resolveContent, respond, FILE_PATH_HINT } from "../utils.js";
+import { summarizeSmartLinks, type SmartLinkReport } from "../shared/smartLinks.js";
 import { createSubTicketCore } from "./createSubTicket.js";
 
 export const createTicketDefinition = {
@@ -217,8 +218,11 @@ export async function createTicketHandler(
       ...additionalJiraFields
     };
 
+    let smartLinks: SmartLinkReport | null = null;
     if (description) {
-      issueFields.description = buildADF(description, descriptionFormat);
+      const built = buildADFWithReport(description, descriptionFormat);
+      issueFields.description = built.adf;
+      smartLinks = built.smartLinks;
     }
 
     const createIssuePayload: any = { fields: issueFields };
@@ -244,7 +248,7 @@ export async function createTicketHandler(
             descriptionSource
               ? `\nDescription from ${descriptionSource} (format: ${descriptionFormat}, ${description.length} characters)`
               : ""
-          }`
+          }${summarizeSmartLinks(smartLinks)}`
         }
       ],
       _meta: {}

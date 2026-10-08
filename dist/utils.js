@@ -4,6 +4,7 @@ import { defaultSchema } from "@atlaskit/adf-schema/dist/cjs/schema/default-sche
 import { markdownToAdf } from "marklassian";
 import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
+import { addSmartLinks, smartLinkOptionsFromEnv } from "./shared/smartLinks.js";
 const wikiTransformer = new WikiMarkupTransformer(defaultSchema);
 /**
  * Conventional file extensions per content format. Markdown uses .md, Jira wiki markup
@@ -167,25 +168,41 @@ export function sanitizeAdf(doc) {
  * @param format - The format of the input text:
  *   - "plain" (default): Wraps text in a single paragraph
  *   - "wiki": Parses Jira wiki markup (h2., {code}, *bold*, etc.)
- *   - "markdown": Parses Markdown (## headings, **bold**, ```code```, etc.)
+ *   - "markdown": Parses Markdown (## headings, **bold**, ```code```, etc.), with links to
+ *     issues and Confluence pages on this Jira site written as smart-link cards
  *   - "adf": Expects text to be JSON string of ADF, parses and returns it
  */
 export function buildADF(text, format = "plain") {
+    return buildADFWithReport(text, format).adf;
+}
+/**
+ * {@link buildADF}, plus what the smart-link pass changed, so a tool can tell the caller which
+ * keys did not become a card. The report is null for formats the pass does not run on: raw ADF
+ * is uploaded exactly as given.
+ */
+export function buildADFWithReport(text, format = "plain") {
+    if (format === "markdown") {
+        const adf = markdownToAdf(text);
+        // Ensure version is set
+        if (!adf.version)
+            adf.version = 1;
+        // A markdown link to an issue is an ordinary link; Jira only shows a card for an
+        // inlineCard node.
+        const options = smartLinkOptionsFromEnv();
+        const smartLinks = options ? addSmartLinks(adf, options) : null;
+        // Repair nodes the converter can leave empty (e.g. an empty table header cell),
+        // which Jira would otherwise reject with a bare 400 INVALID_INPUT.
+        return { adf: sanitizeAdf(adf), smartLinks };
+    }
+    return { adf: buildOtherADF(text, format), smartLinks: null };
+}
+function buildOtherADF(text, format) {
     switch (format) {
         case "wiki": {
             const pmNode = wikiTransformer.parse(text);
             const adf = pmNode.toJSON();
             // Ensure version is set and strip nulls (Jira rejects them)
             return stripNulls({ ...adf, version: 1 });
-        }
-        case "markdown": {
-            const adf = markdownToAdf(text);
-            // Ensure version is set
-            if (!adf.version)
-                adf.version = 1;
-            // Repair nodes the converter can leave empty (e.g. an empty table header cell),
-            // which Jira would otherwise reject with a bare 400 INVALID_INPUT.
-            return sanitizeAdf(adf);
         }
         case "adf": {
             const parsed = JSON.parse(text);

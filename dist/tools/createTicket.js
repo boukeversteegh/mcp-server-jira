@@ -1,4 +1,5 @@
-import { buildADF, resolveContent, respond, FILE_PATH_HINT } from "../utils.js";
+import { buildADFWithReport, resolveContent, respond, FILE_PATH_HINT } from "../utils.js";
+import { summarizeSmartLinks } from "../shared/smartLinks.js";
 import { createSubTicketCore } from "./createSubTicket.js";
 export const createTicketDefinition = {
     name: "create-ticket",
@@ -176,8 +177,11 @@ export async function createTicketHandler(jira, customFieldsMap, args) {
             },
             ...additionalJiraFields
         };
+        let smartLinks = null;
         if (description) {
-            issueFields.description = buildADF(description, descriptionFormat);
+            const built = buildADFWithReport(description, descriptionFormat);
+            issueFields.description = built.adf;
+            smartLinks = built.smartLinks;
         }
         const createIssuePayload = { fields: issueFields };
         console.error(`Create issue payload: ${JSON.stringify(createIssuePayload)}`);
@@ -195,7 +199,7 @@ export async function createTicketHandler(jira, customFieldsMap, args) {
                     type: "text",
                     text: `Created ${key} in project ${projectKey}${additionalFieldsText}${urlText}${descriptionSource
                         ? `\nDescription from ${descriptionSource} (format: ${descriptionFormat}, ${description.length} characters)`
-                        : ""}`
+                        : ""}${summarizeSmartLinks(smartLinks)}`
                 }
             ],
             _meta: {}

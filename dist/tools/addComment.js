@@ -1,4 +1,5 @@
-import { buildADF, withJiraError, respond, resolveContent, FILE_PATH_HINT } from "../utils.js";
+import { buildADFWithReport, withJiraError, respond, resolveContent, FILE_PATH_HINT } from "../utils.js";
+import { summarizeSmartLinks } from "../shared/smartLinks.js";
 export const addCommentDefinition = {
     name: "add-comment",
     description: "Add a comment to a specific ticket. Provide the text inline via `comment`, or point at a local file via `filePath` for long content prepared on disk.",
@@ -34,10 +35,12 @@ export async function addCommentHandler(jira, args) {
         });
         if ("error" in content)
             return respond(content.error);
+        const { adf, smartLinks } = buildADFWithReport(content.text, content.format);
         const result = await jira.issueComments.addComment({
             issueIdOrKey: issueKey,
-            comment: buildADF(content.text, content.format),
+            comment: adf,
         });
-        return respond(`Successfully added comment to ${issueKey} (comment ID: ${result.id}) from ${content.source} (format: ${content.format}, ${content.text.length} characters)`);
+        return respond(`Successfully added comment to ${issueKey} (comment ID: ${result.id}) from ${content.source} (format: ${content.format}, ${content.text.length} characters)` +
+            summarizeSmartLinks(smartLinks));
     }, `Error adding comment to ${issueKey}`);
 }

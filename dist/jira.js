@@ -24,6 +24,7 @@ import { updateCommentDefinition, updateCommentHandler } from "./tools/updateCom
 import { deleteCommentDefinition, deleteCommentHandler } from "./tools/deleteComment.js";
 import { getAttachmentDefinition, getAttachmentHandler } from "./tools/getAttachment.js";
 import { exportContentDefinition, exportContentHandler } from "./tools/exportContent.js";
+import { addSmartLinksDefinition, addSmartLinksHandler } from "./tools/addSmartLinks.js";
 import { startUpdateCheck, consumeUpdateNotice, updateNoticeForError } from "./shared/updateCheck.js";
 import { selfUpdateDefinition, selfUpdateHandler } from "./tools/selfUpdate.js";
 // Map to store custom field information (name to ID mapping)
@@ -86,6 +87,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         listUsersDefinition,
         getAttachmentDefinition,
         exportContentDefinition,
+        addSmartLinksDefinition,
         selfUpdateDefinition
     ]
 }));
@@ -158,6 +160,9 @@ async function dispatchTool(request) {
         }
         case "export-content": {
             return await exportContentHandler(jira, args);
+        }
+        case "add-smartlinks": {
+            return await addSmartLinksHandler(jira, args);
         }
         case "self-update": {
             return await selfUpdateHandler();

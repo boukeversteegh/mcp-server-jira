@@ -1,6 +1,7 @@
 import { Version3Client } from "jira.js";
 import type { DescriptionFormat, McpResponse } from "../utils.js";
-import { buildADF, withJiraError, respond, resolveContent, FILE_PATH_HINT } from "../utils.js";
+import { buildADFWithReport, withJiraError, respond, resolveContent, FILE_PATH_HINT } from "../utils.js";
+import { summarizeSmartLinks } from "../shared/smartLinks.js";
 import { checkVersion, contentVersion, fetchContent } from "../shared/contentVersion.js";
 
 export const updateCommentDefinition = {
@@ -75,17 +76,19 @@ export async function updateCommentHandler(
     });
     if (conflict) return respond(conflict);
 
+    const { adf, smartLinks } = buildADFWithReport(content.text, content.format);
     await jira.issueComments.updateComment({
       issueIdOrKey: issueKey,
       id: commentId,
-      body: buildADF(content.text, content.format) as any,
+      body: adf as any,
     });
 
     const newVersion = contentVersion((await fetchContent(jira, issueKey, commentId)).adf);
 
     return respond(
       `Successfully updated comment ${commentId} on ${issueKey} from ${content.source} (format: ${content.format}, ${content.text.length} characters)\n` +
-      `New version: ${newVersion} — pass this as expectedVersion for the next patch.`
+      `New version: ${newVersion} — pass this as expectedVersion for the next patch.` +
+      summarizeSmartLinks(smartLinks)
     );
   }, `Error updating comment ${commentId} on ${issueKey}`);
 }

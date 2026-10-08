@@ -1,3 +1,4 @@
+import { type SmartLinkReport } from "./shared/smartLinks.js";
 export type DescriptionFormat = "plain" | "wiki" | "markdown" | "adf";
 export declare function formatFromExtension(filePath: string): DescriptionFormat | null;
 export declare const FILE_PATH_HINT: string;
@@ -45,7 +46,17 @@ export declare function sanitizeAdf<T>(doc: T): T;
  * @param format - The format of the input text:
  *   - "plain" (default): Wraps text in a single paragraph
  *   - "wiki": Parses Jira wiki markup (h2., {code}, *bold*, etc.)
- *   - "markdown": Parses Markdown (## headings, **bold**, ```code```, etc.)
+ *   - "markdown": Parses Markdown (## headings, **bold**, ```code```, etc.), with links to
+ *     issues and Confluence pages on this Jira site written as smart-link cards
  *   - "adf": Expects text to be JSON string of ADF, parses and returns it
  */
 export declare function buildADF(text: string, format?: DescriptionFormat): object;
+/**
+ * {@link buildADF}, plus what the smart-link pass changed, so a tool can tell the caller which
+ * keys did not become a card. The report is null for formats the pass does not run on: raw ADF
+ * is uploaded exactly as given.
+ */
+export declare function buildADFWithReport(text: string, format?: DescriptionFormat): {
+    adf: object;
+    smartLinks: SmartLinkReport | null;
+};
