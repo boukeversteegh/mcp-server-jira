@@ -35,6 +35,13 @@ export const FILE_PATH_HINT =
   "The format is inferred from the extension (.md/.markdown = markdown, .wiki/.jira = wiki, .json/.adf = adf, .txt = plain) " +
   "unless it is given explicitly.";
 
+export const EMBED_HINT =
+  "To show a file in the text, reference it with the format's image syntax — markdown ![alt](./shot.png), " +
+  "wiki !shot.png! (or [^report.pdf] for a non-image file). A local path (relative to the content file, else the " +
+  "server's working directory) is uploaded as an issue attachment and embedded; an attachment already on the ticket " +
+  "with the same name and size is reused instead of uploaded again. attachment:<filename or ID> embeds an existing " +
+  "attachment. Every reference is checked before anything is uploaded or written.";
+
 /**
  * Resolve content that may be supplied inline or via a file. Exactly one of the two must
  * be present. Returns either the resolved text plus the format to parse it with, or a

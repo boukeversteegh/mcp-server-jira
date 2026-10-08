@@ -1,6 +1,7 @@
 export type DescriptionFormat = "plain" | "wiki" | "markdown" | "adf";
 export declare function formatFromExtension(filePath: string): DescriptionFormat | null;
 export declare const FILE_PATH_HINT: string;
+export declare const EMBED_HINT: string;
 /**
  * Resolve content that may be supplied inline or via a file. Exactly one of the two must
  * be present. Returns either the resolved text plus the format to parse it with, or a

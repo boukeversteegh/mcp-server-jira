@@ -34,7 +34,7 @@ const richDoc = {
           type: "paragraph",
           content: [
             { type: "text", text: "escalated to " },
-            { type: "mention", attrs: { id: "123", text: "@Bouke" } },
+            { type: "mention", attrs: { id: "123", text: "@Alex" } },
           ],
         },
       ],

@@ -1,3 +1,4 @@
+// Unit test: runs against a fake Jira client. No network access, nothing is written to Jira.
 import { addAttachmentHandler } from "../dist/tools/addAttachment.js";
 import * as fs from "fs";
 import * as os from "os";

@@ -216,6 +216,35 @@ having to fetch the version of empty content.
 
 Pass `"force": true` to skip the check and overwrite regardless.
 
+### Embedding files in descriptions and comments
+
+`add-comment`, `update-comment`, `update-description`, `create-ticket` and `create-sub-ticket` embed
+files referenced with the image syntax of the content format:
+
+```markdown
+![the error dialog](./screenshots/error.png)
+```
+
+```
+!error.png!          (wiki, image)
+[^report.pdf]        (wiki, file)
+```
+
+Each reference resolves to an issue attachment. Jira stores a file shown in a comment as an issue
+attachment, so comments and descriptions work the same way. References resolve in this order:
+
+1. `attachment:<filename or ID>` embeds an attachment already on the ticket.
+2. A local path (relative to the content file, or to the server's working directory for inline text)
+   is uploaded. If the ticket already has an attachment with the same name and size, that attachment
+   is reused, so re-sending an edited file does not attach the same screenshot again.
+3. Otherwise, an attachment already on the ticket with that filename is used.
+
+Every reference is checked before anything is uploaded or written. A single bad reference makes
+the call fail with nothing changed. Web URLs (`https://…`) are left as they are. Images render
+inline, and other files appear as attachment links. When creating a ticket, the description is
+written in a second step after the issue exists, because files can only be attached to an existing
+issue.
+
 ## Development
 
 The server is written in TypeScript and uses:
@@ -232,6 +261,12 @@ Recommended scripts:
 - Run compiled server: `npm start`
 - Format check: `npm run fmt:check`
 - Format write: `npm run fmt`
+- Unit tests: `npm test`
+
+`npm test` runs unit tests only. They use fake Jira clients, need no credentials, and never touch a
+real Jira instance. Checks against a live Jira that create tickets, comments or attachments are run
+by hand as one-off scripts and are not committed. Neither kind of test should commit details of a
+real Jira instance, such as its hostname, project keys, issue keys, people's names or attachment IDs.
 
 Typical workflow:
 

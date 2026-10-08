@@ -1,11 +1,12 @@
 import { Version3Client } from "jira.js";
 import type { DescriptionFormat, McpResponse } from "../utils.js";
-import { buildADF, resolveContent, respond, FILE_PATH_HINT } from "../utils.js";
+import { buildADF, resolveContent, respond, fail, FILE_PATH_HINT, EMBED_HINT } from "../utils.js";
+import { planEmbeds, embedBaseDir, formatEmbedLines, writeDeferredDescription } from "../shared/embedAttachments.js";
 import { createSubTicketCore } from "./createSubTicket.js";
 
 export const createTicketDefinition = {
   name: "create-ticket",
-  description: "Create a new ticket (regular issue or sub-task) with optional custom fields. The description can be given inline via `description` or read from a local file via `filePath`.",
+  description: "Create a new ticket (regular issue or sub-task) with optional custom fields. The description can be given inline via `description` or read from a local file via `filePath`. " + EMBED_HINT,
   inputSchema: {
     type: "object",
     properties: {
@@ -81,8 +82,14 @@ export async function createTicketHandler(
         descriptionFormat,
         issueType,
         descriptionSource: descriptionSource || undefined,
+        embedBaseDir: embedBaseDir(filePath),
       });
     }
+
+    const descriptionAdf = description ? buildADF(description, descriptionFormat) : null;
+    const planned = descriptionAdf ? await planEmbeds(jira, undefined, descriptionAdf, embedBaseDir(filePath)) : null;
+    if (planned && "error" in planned) return fail(planned.error);
+    const deferDescription = !!planned && planned.plan.refs.length > 0;
 
     // Get available issue types for the project
     const createMeta = await jira.issues.getCreateIssueMeta({
@@ -217,8 +224,8 @@ export async function createTicketHandler(
       ...additionalJiraFields
     };
 
-    if (description) {
-      issueFields.description = buildADF(description, descriptionFormat);
+    if (descriptionAdf && !deferDescription) {
+      issueFields.description = descriptionAdf;
     }
 
     const createIssuePayload: any = { fields: issueFields };
@@ -236,6 +243,13 @@ export async function createTicketHandler(
     const { key, self } = created;
     const urlText = self ? `\nURL: ${self.replace(/\/rest\/api\/3\/issue\/\w+$/, `/browse/${key}`)}` : "";
 
+    let embedText = "";
+    if (deferDescription) {
+      const written = await writeDeferredDescription(jira, key, descriptionAdf!, planned!.plan);
+      if ("error" in written) return fail(written.error);
+      embedText = formatEmbedLines(written.lines);
+    }
+
     return {
       content: [
         {
@@ -244,7 +258,7 @@ export async function createTicketHandler(
             descriptionSource
               ? `\nDescription from ${descriptionSource} (format: ${descriptionFormat}, ${description.length} characters)`
               : ""
-          }`
+          }${embedText}`
         }
       ],
       _meta: {}

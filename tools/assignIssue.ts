@@ -11,7 +11,7 @@ export const assignIssueDefinition = {
       issueKeys: {
         type: "array",
         items: { type: "string" },
-        description: "List of issue keys to assign (e.g., ['EDU-123', 'EDU-124']).",
+        description: "List of issue keys to assign (e.g., ['PROJ-123', 'PROJ-124']).",
       },
       assigneeDisplayName: {
         type: "string",

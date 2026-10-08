@@ -41,6 +41,8 @@ export declare function createSubTicketCore(jira: Version3Client, args: {
     issueType?: string;
     /** Where the description came from, for the result message (e.g. a file path). */
     descriptionSource?: string | undefined;
+    /** Directory that relative file references in the description resolve against. */
+    embedBaseDir?: string | undefined;
 }): Promise<McpResponse>;
 export declare function createSubTicketHandler(jira: Version3Client, args: {
     parentKey: string;
