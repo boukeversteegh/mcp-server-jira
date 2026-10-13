@@ -39,6 +39,13 @@ The server provides the following tools:
    - Required parameter: `issueKey` (string)
    - Required parameter: `filePaths` (string array) — every path is checked before any upload, so a bad path uploads nothing
 
+9. `list-notifications`: Reads your Atlassian notifications (the bell icon), newest first
+   - Optional parameter: `since` / `until` — an ISO date/time (`2026-10-01`, `2026-10-01T09:00:00Z`) or a duration back from now (`30m`, `24h`, `7d`, `2w`)
+   - Optional parameter: `limit` (number) — default 20, max 100
+   - Optional parameter: `unreadOnly` (boolean), `category` (`direct` or `watching`), `product` (e.g. `jira`, `confluence`)
+   - Optional parameter: `markAsRead` (boolean, default `false`) — marks the returned unread notifications as read; grouped notifications are marked as a whole. The API has no way to delete or dismiss a notification.
+   - Notifications come from the Atlassian GraphQL gateway (`/gateway/api/graphql`), which accepts the same API token. They are account-wide, so they include Confluence and admin notices unless filtered by `product`.
+
 ## Setup
 
 1. Install dependencies:

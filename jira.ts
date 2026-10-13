@@ -25,6 +25,7 @@ import { deleteCommentDefinition, deleteCommentHandler } from "./tools/deleteCom
 import { getAttachmentDefinition, getAttachmentHandler } from "./tools/getAttachment.js";
 import { addAttachmentDefinition, addAttachmentHandler } from "./tools/addAttachment.js";
 import { exportContentDefinition, exportContentHandler } from "./tools/exportContent.js";
+import { listNotificationsDefinition, listNotificationsHandler, type ListNotificationsArgs } from "./tools/listNotifications.js";
 import { startUpdateCheck, consumeUpdateNotice, updateNoticeForError } from "./shared/updateCheck.js";
 import { selfUpdateDefinition, selfUpdateHandler } from "./tools/selfUpdate.js";
 import type { McpResponse } from "./utils.js";
@@ -102,6 +103,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     getAttachmentDefinition,
     addAttachmentDefinition,
     exportContentDefinition,
+    listNotificationsDefinition,
     selfUpdateDefinition
   ]
 }));
@@ -219,6 +221,10 @@ async function dispatchTool(request: { params: { name: string; arguments?: unkno
 
     case "export-content": {
       return await exportContentHandler(jira, args as { issueKey: string; commentId?: string; filePath?: string; format?: "markdown" | "adf" });
+    }
+
+    case "list-notifications": {
+      return await listNotificationsHandler(args as ListNotificationsArgs);
     }
 
     case "self-update": {

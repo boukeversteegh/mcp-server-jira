@@ -25,6 +25,7 @@ import { deleteCommentDefinition, deleteCommentHandler } from "./tools/deleteCom
 import { getAttachmentDefinition, getAttachmentHandler } from "./tools/getAttachment.js";
 import { addAttachmentDefinition, addAttachmentHandler } from "./tools/addAttachment.js";
 import { exportContentDefinition, exportContentHandler } from "./tools/exportContent.js";
+import { listNotificationsDefinition, listNotificationsHandler } from "./tools/listNotifications.js";
 import { startUpdateCheck, consumeUpdateNotice, updateNoticeForError } from "./shared/updateCheck.js";
 import { selfUpdateDefinition, selfUpdateHandler } from "./tools/selfUpdate.js";
 // Map to store custom field information (name to ID mapping)
@@ -88,6 +89,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         getAttachmentDefinition,
         addAttachmentDefinition,
         exportContentDefinition,
+        listNotificationsDefinition,
         selfUpdateDefinition
     ]
 }));
@@ -163,6 +165,9 @@ async function dispatchTool(request) {
         }
         case "export-content": {
             return await exportContentHandler(jira, args);
+        }
+        case "list-notifications": {
+            return await listNotificationsHandler(args);
         }
         case "self-update": {
             return await selfUpdateHandler();
