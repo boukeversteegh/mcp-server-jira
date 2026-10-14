@@ -60,5 +60,5 @@ export type NotificationsArgs = {
  * Returns null when the value is neither.
  */
 export declare function parseTimeFilter(value: string, now?: Date): string | null;
-export declare function notificationsHandler(args: NotificationsArgs, graphql?: GraphqlClient, now?: Date): Promise<McpResponse>;
+export declare function notificationsHandler(args: NotificationsArgs, client?: GraphqlClient, now?: Date, routingAri?: () => Promise<string>): Promise<McpResponse>;
 export declare function timestampFromId(id: string): number | null;

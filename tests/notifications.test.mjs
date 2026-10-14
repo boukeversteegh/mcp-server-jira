@@ -5,6 +5,16 @@ import {
 } from "../dist/tools/notifications.js";
 
 const NOW = new Date("2026-10-13T12:00:00.000Z");
+const ROUTING = "ari:cloud:jira::site/00000000-0000-0000-0000-000000000000";
+
+/** Calls the handler with a fixed routing ARI, so no test looks up a real site. */
+let routingLookups = 0;
+function handle(args, gql, now = NOW) {
+  return notificationsHandler(args, gql, now, async () => {
+    routingLookups++;
+    return ROUTING;
+  });
+}
 
 function notification(
   id,
@@ -127,7 +137,7 @@ expect(
       }),
     ],
   ]);
-  const res = await notificationsHandler(
+  const res = await handle(
     {
       since: "7d",
       until: "2026-10-13",
@@ -178,7 +188,7 @@ expect(
     [notification(3), notification(4)],
     [notification(5)],
   ]);
-  const res = await notificationsHandler({ limit: 3 }, gql, NOW);
+  const res = await handle({ limit: 3 }, gql, NOW);
   const text = res.content[0].text;
   const feedCalls = gql.calls.filter((c) => c.query.startsWith("query"));
   expect(
@@ -197,7 +207,7 @@ expect(
 // 4. an empty page ends pagination even when the feed claims there is more
 {
   const gql = fakeGraphql([[notification(1)], [], [notification(9)]]);
-  const res = await notificationsHandler({ limit: 10 }, gql, NOW);
+  const res = await handle({ limit: 10 }, gql, NOW);
   expect(
     "stops on an empty page",
     res.content[0].text.startsWith("1 notification(s)") &&
@@ -215,7 +225,7 @@ expect(
       notification(3, { groupSize: 4 }),
     ],
   ]);
-  const res = await notificationsHandler({ markAsRead: true }, gql, NOW);
+  const res = await handle({ markAsRead: true }, gql, NOW);
   const mutations = gql.calls.filter((c) => c.query.startsWith("mutation"));
   expect(
     "marks unread singles by ID and groups by group ID",
@@ -232,8 +242,8 @@ expect(
 // 6. invalid arguments are refused before any request
 {
   const gql = fakeGraphql([]);
-  const badSince = await notificationsHandler({ since: "soon" }, gql, NOW);
-  const badLimit = await notificationsHandler({ limit: 500 }, gql, NOW);
+  const badSince = await handle({ since: "soon" }, gql, NOW);
+  const badLimit = await handle({ limit: 500 }, gql, NOW);
   expect(
     "rejects bad since and limit without calling the gateway",
     badSince.isError &&
@@ -246,7 +256,7 @@ expect(
 
 // 7. a gateway failure is reported as a tool error
 {
-  const res = await notificationsHandler(
+  const res = await handle(
     {},
     async () => {
       throw new Error("GraphQL error: Unauthorized");
@@ -323,11 +333,7 @@ const feedItems = [
 // 8. an ID is looked up through a ±1 ms window around its embedded timestamp
 {
   const gql = filteringGraphql(feedItems);
-  const res = await notificationsHandler(
-    { ids: [ID1], since: "1h", limit: 1 },
-    gql,
-    NOW,
-  );
+  const res = await handle({ ids: [ID1], since: "1h", limit: 1 }, gql, NOW);
   const text = res.content[0].text;
   const filter = gql.calls[0].variables.filter;
   expect(
@@ -346,11 +352,7 @@ const feedItems = [
 // 9. ids + markAsRead marks exactly those notifications
 {
   const gql = filteringGraphql(feedItems);
-  const res = await notificationsHandler(
-    { ids: [ID2], markAsRead: true },
-    gql,
-    NOW,
-  );
+  const res = await handle({ ids: [ID2], markAsRead: true }, gql, NOW);
   const mutations = gql.calls.filter((c) => c.query.startsWith("mutation"));
   expect(
     "marks only the requested notification",
@@ -364,7 +366,7 @@ const feedItems = [
 // 10. an ID without a timestamp falls back to scanning; unknown IDs are reported
 {
   const gql = filteringGraphql(feedItems);
-  const res = await notificationsHandler(
+  const res = await handle(
     { ids: ["opaque-id", "missing-id"], markAsRead: true },
     gql,
     NOW,
@@ -385,11 +387,7 @@ const feedItems = [
 // 11. nothing found is an error and marks nothing
 {
   const gql = filteringGraphql(feedItems);
-  const res = await notificationsHandler(
-    { ids: ["missing-id"], markAsRead: true },
-    gql,
-    NOW,
-  );
+  const res = await handle({ ids: ["missing-id"], markAsRead: true }, gql, NOW);
   expect(
     "reports an error when no ID is found",
     res.isError &&
@@ -402,12 +400,43 @@ const feedItems = [
 // 12. ids must be a non-empty array of strings
 {
   const gql = filteringGraphql(feedItems);
-  const empty = await notificationsHandler({ ids: [] }, gql, NOW);
-  const notArray = await notificationsHandler({ ids: ID1 }, gql, NOW);
+  const empty = await handle({ ids: [] }, gql, NOW);
+  const notArray = await handle({ ids: ID1 }, gql, NOW);
   expect(
     "rejects malformed ids",
     empty.isError && notArray.isError && gql.calls.length === 0,
     `${empty.content[0].text}\n${notArray.content[0].text}`,
+  );
+}
+
+// 13. every query and mutation carries the site routing ARI, resolved once per call
+{
+  const gql = fakeGraphql([[notification(1)], [notification(2)]]);
+  routingLookups = 0;
+  await handle({ markAsRead: true }, gql, NOW);
+  expect(
+    "routes every request to the site",
+    gql.calls.length === 3 &&
+      gql.calls.every((c) => c.variables.routing === ROUTING) &&
+      gql.calls.every((c) =>
+        c.query.includes("collabContextRoutingAri: $routing"),
+      ) &&
+      routingLookups === 1,
+    JSON.stringify({
+      routingLookups,
+      calls: gql.calls.map((c) => c.variables),
+    }),
+  );
+}
+
+// 14. a bad argument does not trigger the routing lookup
+{
+  routingLookups = 0;
+  await handle({ limit: 0 }, fakeGraphql([]), NOW);
+  expect(
+    "skips the routing lookup on bad arguments",
+    routingLookups === 0,
+    String(routingLookups),
   );
 }
 

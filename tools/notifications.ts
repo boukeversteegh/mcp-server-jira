@@ -3,6 +3,7 @@ import { respond, fail, formatJiraError } from "../utils.js";
 import { convertADFToMarkdown } from "../shared/helpers.js";
 import {
   atlassianGraphql,
+  jiraSiteAri,
   type GraphqlClient,
 } from "../shared/atlassianGraphql.js";
 
@@ -15,8 +16,8 @@ const SCAN_LIMIT = 500;
 export const notificationsDefinition = {
   name: "notifications",
   description:
-    "Read your Atlassian notifications (the bell icon in Jira), newest first. Notifications are account-wide, " +
-    "so Confluence and admin notices appear too unless filtered by product. " +
+    "Read your notifications from the Jira site's bell icon (comments, mentions, assignments and other " +
+    "activity on items you report, are assigned to or watch), newest first. " +
     "Pass ids to fetch specific notifications (the ID line of each result) instead of the feed. " +
     "With markAsRead, the returned unread notifications are marked as read afterwards, so ids + markAsRead " +
     "marks exactly those; notifications cannot be deleted or dismissed through the API.",
@@ -82,9 +83,9 @@ export type NotificationsArgs = {
   markAsRead?: boolean;
 };
 
-const FEED_QUERY = `query ListNotifications($first: Int, $after: String, $filter: InfluentsNotificationFilter) {
+const FEED_QUERY = `query ListNotifications($first: Int, $after: String, $filter: InfluentsNotificationFilter, $routing: String) {
   notifications {
-    notificationFeed(first: $first, after: $after, filter: $filter) {
+    notificationFeed(first: $first, after: $after, filter: $filter, collabContextRoutingAri: $routing) {
       pageInfo { hasNextPage endCursor }
       nodes {
         groupId
@@ -111,12 +112,14 @@ const FEED_QUERY = `query ListNotifications($first: Int, $after: String, $filter
   }
 }`;
 
-const MARK_IDS_READ = `mutation MarkNotificationsRead($ids: [String!]!) {
-  notifications { markNotificationsByIdsAsRead(ids: $ids) }
+const MARK_IDS_READ = `mutation MarkNotificationsRead($ids: [String!]!, $routing: String) {
+  notifications { markNotificationsByIdsAsRead(ids: $ids, collabContextRoutingAri: $routing) }
 }`;
 
-const MARK_GROUP_READ = `mutation MarkNotificationGroupRead($groupId: String!) {
-  notifications { markNotificationsByGroupIdAsRead(groupId: $groupId) }
+const MARK_GROUP_READ = `mutation MarkNotificationGroupRead($groupId: String!, $routing: String) {
+  notifications {
+    markNotificationsByGroupIdAsRead(groupId: $groupId, collabContextRoutingAri: $routing)
+  }
 }`;
 
 /**
@@ -140,8 +143,9 @@ export function parseTimeFilter(
 
 export async function notificationsHandler(
   args: NotificationsArgs,
-  graphql: GraphqlClient = atlassianGraphql(),
+  client: GraphqlClient = atlassianGraphql(),
   now: Date = new Date(),
+  routingAri: () => Promise<string> = jiraSiteAri,
 ): Promise<McpResponse> {
   const {
     ids,
@@ -152,6 +156,13 @@ export async function notificationsHandler(
     product,
     markAsRead = false,
   } = args ?? {};
+
+  // Without a routing ARI the gateway serves only platform-wide notices (admin announcements);
+  // the site's Jira notifications live behind the site's ARI. Resolved on first use, so
+  // argument errors never cost a request.
+  let routing: Promise<string> | undefined;
+  const graphql: GraphqlClient = async (query, variables) =>
+    client(query, { ...variables, routing: await (routing ??= routingAri()) });
 
   if (ids !== undefined) {
     if (

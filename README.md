@@ -45,7 +45,7 @@ The server provides the following tools:
    - Optional parameter: `unreadOnly` (boolean), `category` (`direct` or `watching`), `product` (e.g. `jira`, `confluence`)
    - Optional parameter: `ids` (string array) — return only these notifications (the `ID:` line of each result); the other filters and `limit` are ignored
    - Optional parameter: `markAsRead` (boolean, default `false`) — marks the returned unread notifications as read, so `ids` + `markAsRead` marks exactly those; grouped notifications are marked as a whole. The API has no way to delete or dismiss a notification.
-   - Notifications come from the Atlassian GraphQL gateway (`/gateway/api/graphql`), which accepts the same API token. They are account-wide, so they include Confluence and admin notices unless filtered by `product`.
+   - Notifications come from the Atlassian GraphQL gateway (`/gateway/api/graphql`), which accepts the same API token. The feed is requested for the site in `JIRA_HOST` (its cloud ID is read from the public `/_edge/tenant_info`); without that routing the gateway returns only platform-wide admin notices.
 
 ## Setup
 

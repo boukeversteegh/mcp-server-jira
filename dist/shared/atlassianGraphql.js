@@ -1,3 +1,26 @@
+let siteAri;
+/**
+ * The site's ARI (`ari:cloud:jira::site/<cloudId>`), which the notification fields take as
+ * `collabContextRoutingAri`. The cloud ID comes from the site's public `/_edge/tenant_info`.
+ * Cached for the process lifetime; a failed lookup is retried on the next call.
+ */
+export function jiraSiteAri() {
+    siteAri ??= (async () => {
+        const host = (process.env.JIRA_HOST ?? "").replace(/\/+$/, "");
+        const response = await fetch(`${host}/_edge/tenant_info`, {
+            headers: { Accept: "application/json" },
+        });
+        const cloudId = response.ok ? (await response.json())?.cloudId : undefined;
+        if (typeof cloudId !== "string" || cloudId === "") {
+            throw new Error(`Could not determine the cloud ID of ${host} from /_edge/tenant_info (${response.status} ${response.statusText})`);
+        }
+        return `ari:cloud:jira::site/${cloudId}`;
+    })().catch((e) => {
+        siteAri = undefined;
+        throw e;
+    });
+    return siteAri;
+}
 export function atlassianGraphql() {
     const { JIRA_HOST, JIRA_EMAIL, JIRA_API_TOKEN } = process.env;
     const endpoint = `${(JIRA_HOST ?? "").replace(/\/+$/, "")}/gateway/api/graphql`;
