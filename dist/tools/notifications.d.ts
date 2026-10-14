@@ -1,11 +1,18 @@
 import type { McpResponse } from "../utils.js";
 import { type GraphqlClient } from "../shared/atlassianGraphql.js";
-export declare const listNotificationsDefinition: {
+export declare const notificationsDefinition: {
     name: string;
     description: string;
     inputSchema: {
         type: string;
         properties: {
+            ids: {
+                type: string;
+                items: {
+                    type: string;
+                };
+                description: string;
+            };
             since: {
                 type: string;
                 description: string;
@@ -38,7 +45,8 @@ export declare const listNotificationsDefinition: {
         };
     };
 };
-export type ListNotificationsArgs = {
+export type NotificationsArgs = {
+    ids?: string[];
     since?: string;
     until?: string;
     limit?: number;
@@ -52,4 +60,5 @@ export type ListNotificationsArgs = {
  * Returns null when the value is neither.
  */
 export declare function parseTimeFilter(value: string, now?: Date): string | null;
-export declare function listNotificationsHandler(args: ListNotificationsArgs, graphql?: GraphqlClient, now?: Date): Promise<McpResponse>;
+export declare function notificationsHandler(args: NotificationsArgs, graphql?: GraphqlClient, now?: Date): Promise<McpResponse>;
+export declare function timestampFromId(id: string): number | null;

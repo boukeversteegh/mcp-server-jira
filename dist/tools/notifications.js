@@ -4,15 +4,24 @@ import { atlassianGraphql, } from "../shared/atlassianGraphql.js";
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 const PAGE_SIZE = 50;
-export const listNotificationsDefinition = {
-    name: "list-notifications",
+/** How far back an ID lookup scans when the ID carries no usable timestamp. */
+const SCAN_LIMIT = 500;
+export const notificationsDefinition = {
+    name: "notifications",
     description: "Read your Atlassian notifications (the bell icon in Jira), newest first. Notifications are account-wide, " +
         "so Confluence and admin notices appear too unless filtered by product. " +
-        "With markAsRead, the returned unread notifications are marked as read afterwards; notifications cannot be " +
-        "deleted or dismissed through the API.",
+        "Pass ids to fetch specific notifications (the ID line of each result) instead of the feed. " +
+        "With markAsRead, the returned unread notifications are marked as read afterwards, so ids + markAsRead " +
+        "marks exactly those; notifications cannot be deleted or dismissed through the API.",
     inputSchema: {
         type: "object",
         properties: {
+            ids: {
+                type: "array",
+                items: { type: "string" },
+                description: "Notification IDs (from the ID line of earlier results). Returns only these notifications; " +
+                    "the other filters and limit are ignored.",
+            },
             since: {
                 type: "string",
                 description: "Only notifications at or after this time: an ISO date/time (2026-10-01, 2026-10-01T09:00:00Z) " +
@@ -95,8 +104,16 @@ export function parseTimeFilter(value, now = new Date()) {
     const ms = Date.parse(value);
     return Number.isNaN(ms) ? null : new Date(ms).toISOString();
 }
-export async function listNotificationsHandler(args, graphql = atlassianGraphql(), now = new Date()) {
-    const { since, until, unreadOnly = false, category, product, markAsRead = false, } = args ?? {};
+export async function notificationsHandler(args, graphql = atlassianGraphql(), now = new Date()) {
+    const { ids, since, until, unreadOnly = false, category, product, markAsRead = false, } = args ?? {};
+    if (ids !== undefined) {
+        if (!Array.isArray(ids) ||
+            ids.length === 0 ||
+            ids.some((id) => typeof id !== "string" || id.trim() === "")) {
+            return fail("Error: ids must be a non-empty array of notification IDs");
+        }
+        return await byIds(graphql, ids, markAsRead);
+    }
     const limit = args?.limit ?? DEFAULT_LIMIT;
     if (!Number.isInteger(limit) || limit < 1 || limit > MAX_LIMIT) {
         return fail(`Error: limit must be a whole number between 1 and ${MAX_LIMIT}`);
@@ -145,6 +162,62 @@ export async function listNotificationsHandler(args, graphql = atlassianGraphql(
         lines.push("", await markRead(graphql, items));
     }
     return respond(lines.join("\n"));
+}
+async function byIds(graphql, ids, markAsRead) {
+    const found = new Map();
+    try {
+        for (const id of ids) {
+            const item = await findById(graphql, id);
+            if (item)
+                found.set(id, item);
+        }
+    }
+    catch (e) {
+        return fail(formatJiraError("Error fetching notifications", e));
+    }
+    const missing = ids.filter((id) => !found.has(id));
+    const items = [...found.values()];
+    const lines = [];
+    if (items.length > 0) {
+        lines.push(`${items.length} notification(s):`, "", items.map(formatItem).join("\n\n"));
+    }
+    if (missing.length > 0) {
+        if (lines.length)
+            lines.push("");
+        lines.push(`Not found (${missing.length}): ${missing.join(", ")}`, `Searched the ${SCAN_LIMIT} most recent notifications for IDs without an embedded timestamp.`);
+    }
+    if (markAsRead && items.length > 0) {
+        lines.push("", await markRead(graphql, items));
+    }
+    const response = respond(lines.join("\n"));
+    return items.length === 0 ? { ...response, isError: true } : response;
+}
+/**
+ * The feed cannot be filtered by ID. A notification ID is base64 of `<trigger>|<recipient>|<timestamp>`,
+ * and the feed's timestamp bounds are exclusive, so a ±1 ms window around that timestamp fetches the
+ * notification directly. IDs that do not decode that way fall back to scanning the recent feed.
+ */
+async function findById(graphql, id) {
+    const matches = (item) => item.headNotification?.notificationId === id;
+    const timestamp = timestampFromId(id);
+    if (timestamp !== null) {
+        const window = await fetchFeed(graphql, {
+            afterTimestamp: new Date(timestamp - 1).toISOString(),
+            beforeTimestamp: new Date(timestamp + 1).toISOString(),
+        }, PAGE_SIZE);
+        const item = window.find(matches);
+        if (item)
+            return item;
+    }
+    return (await fetchFeed(graphql, {}, SCAN_LIMIT)).find(matches);
+}
+export function timestampFromId(id) {
+    const decoded = Buffer.from(id, "base64").toString("utf8");
+    const last = decoded.split("|").pop() ?? "";
+    if (!/^\d{4}-\d{2}-\d{2}T/.test(last))
+        return null;
+    const ms = Date.parse(last);
+    return Number.isNaN(ms) ? null : ms;
 }
 async function fetchFeed(graphql, filter, limit) {
     const items = [];
