@@ -221,15 +221,14 @@ export async function notificationsHandler(
     );
   }
 
+  // Marked first, so each notification is listed in the state it is left in.
+  const marked = markAsRead ? await markRead(graphql, items) : null;
   const lines = [
     `${items.length} notification(s)${timeRange}, newest first:`,
     "",
     items.map(formatItem).join("\n\n"),
   ];
-
-  if (markAsRead) {
-    lines.push("", await markRead(graphql, items));
-  }
+  if (marked) lines.push("", marked);
 
   return respond(lines.join("\n"));
 }
@@ -251,6 +250,8 @@ async function byIds(
 
   const missing = ids.filter((id) => !found.has(id));
   const items = [...found.values()];
+  const marked =
+    markAsRead && items.length > 0 ? await markRead(graphql, items) : null;
   const lines: string[] = [];
   if (items.length > 0) {
     lines.push(
@@ -266,9 +267,7 @@ async function byIds(
       `Searched the ${SCAN_LIMIT} most recent notifications for IDs without an embedded timestamp.`,
     );
   }
-  if (markAsRead && items.length > 0) {
-    lines.push("", await markRead(graphql, items));
-  }
+  if (marked) lines.push("", marked);
 
   const response = respond(lines.join("\n"));
   return items.length === 0 ? { ...response, isError: true } : response;
@@ -343,6 +342,11 @@ function isUnread(item: any): boolean {
   );
 }
 
+/**
+ * Mark the unread items as read and, once the gateway accepts it, update their read state in
+ * place so the response shows them as they now are. The feed itself is eventually consistent,
+ * so fetching them again immediately could still report them unread.
+ */
 async function markRead(graphql: GraphqlClient, items: any[]): Promise<string> {
   const unread = items.filter(isUnread);
   if (unread.length === 0)
@@ -366,7 +370,10 @@ async function markRead(graphql: GraphqlClient, items: any[]): Promise<string> {
       e,
     );
   }
-  // The feed is eventually consistent: a read immediately afterwards can still show them unread.
+  for (const item of unread) {
+    item.headNotification.readState = "read";
+    item.readStates = (item.readStates ?? []).map(() => "read");
+  }
   return `Marked ${unread.length} notification(s) as read (the feed can take a few seconds to reflect this).`;
 }
 

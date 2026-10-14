@@ -237,6 +237,32 @@ expect(
       res.content[0].text.includes("Marked 2 notification(s) as read"),
     `${res.content[0].text}\n${JSON.stringify(mutations)}`,
   );
+  const states = [...res.content[0].text.matchAll(/^\[(\w+)\]/gm)].map(
+    (m) => m[1],
+  );
+  expect(
+    "lists marked notifications in their new read state",
+    JSON.stringify(states) === '["read","read","read"]',
+    res.content[0].text,
+  );
+}
+
+// 5b. when marking fails, the notifications are listed as still unread
+{
+  const feed = fakeGraphql([[notification(1)]]);
+  const gql = async (query, variables) => {
+    if (query.startsWith("mutation"))
+      throw new Error("GraphQL error: Forbidden");
+    return feed(query, variables);
+  };
+  const res = await handle({ markAsRead: true }, gql, NOW);
+  const text = res.content[0].text;
+  expect(
+    "keeps the unread state when marking fails",
+    text.includes("[UNREAD]") &&
+      text.includes("marking them as read failed: GraphQL error: Forbidden"),
+    text,
+  );
 }
 
 // 6. invalid arguments are refused before any request
@@ -310,7 +336,8 @@ function filteringGraphql(items) {
     return {
       notifications: {
         notificationFeed: {
-          nodes: nodes.slice(0, variables.first),
+          // Copies, so marking in one test cannot change the fixtures of the next.
+          nodes: structuredClone(nodes.slice(0, variables.first)),
           pageInfo: { hasNextPage: false, endCursor: null },
         },
       },
@@ -358,7 +385,8 @@ const feedItems = [
     "marks only the requested notification",
     mutations.length === 1 &&
       JSON.stringify(mutations[0].variables.ids) === JSON.stringify([ID2]) &&
-      res.content[0].text.includes("Marked 1 notification(s) as read"),
+      res.content[0].text.includes("Marked 1 notification(s) as read") &&
+      res.content[0].text.startsWith("1 notification(s):\n\n[read]"),
     `${res.content[0].text}\n${JSON.stringify(mutations)}`,
   );
 }
