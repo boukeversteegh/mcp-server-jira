@@ -17,9 +17,10 @@ The server provides the following tools:
    - Either `comment` (string) or `filePath` (string) — see [Editing content from a file](#editing-content-from-a-file)
    - Optional parameter: `commentFormat` — `plain` (default), `wiki`, `markdown` or `adf`
 
-4. `link-tickets`: Links two tickets with a 'relates to' relationship
-   - Required parameter: `sourceIssueKey` (string)
-   - Required parameter: `targetIssueKey` (string)
+4. `link-issues`: Links every outward issue to every inward issue, read as "outward *blocks* inward"
+   - Required parameters: `outwardIssueKeys`, `inwardIssueKeys` (string arrays) — with `linkType: "Blocks"`, the outward keys are the blockers
+   - Optional parameter: `linkType` — the type's name (`Blocks`, or `3. Blocks` on sites that number them) or its inward/outward description; defaults to `Relates`. `unlink-issues` accepts the same values.
+   - Results are reported in words, e.g. `PROJ-1 blocks PROJ-2`
 
 5. `update-description`: Updates the description of a specific ticket
    - Required parameter: `issueKey` (string)

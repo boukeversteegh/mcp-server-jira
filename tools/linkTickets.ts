@@ -4,19 +4,19 @@ import { respond, withJiraError } from "../utils.js";
 
 export const linkIssuesDefinition = {
     name: "link-issues",
-    description: "Link multiple tickets using a specified link type. Provide inwardIssueKeys and outwardIssueKeys lists to create links in both directions. Existing links are detected and never duplicated: the result reports which links were created and which were already present. For asymmetric link types (e.g. 'Blocks'), an existing link in the opposite direction is reported as a conflict instead of being created (override with allowReciprocal).",
+    description: "Link multiple tickets using a specified link type. Every outward key is linked to every inward key, read as '<outward key> <outward description> <inward key>': with linkType 'Blocks', outwardIssueKeys are the blockers and inwardIssueKeys the blocked issues ('A blocks B'). Existing links are detected and never duplicated: the result reports which links were created and which were already present. For asymmetric link types (e.g. 'Blocks'), an existing link in the opposite direction is reported as a conflict instead of being created (override with allowReciprocal).",
     inputSchema: {
         type: "object",
         properties: {
             inwardIssueKeys: {
                 type: "array",
                 items: { type: "string" },
-                description: "Keys that will be used as inwardIssue in links"
+                description: "Issues on the inward side, described by the type's inward text (for 'Blocks': the issues that are blocked)"
             },
             outwardIssueKeys: {
                 type: "array",
                 items: { type: "string" },
-                description: "Keys that will be used as outwardIssue in links"
+                description: "Issues on the outward side, described by the type's outward text (for 'Blocks': the issues that block)"
             },
             linkType: {
                 type: "string",
@@ -33,8 +33,43 @@ export const linkIssuesDefinition = {
 
 const norm = (s: string) => s.trim().toUpperCase();
 
-/** Directed pair key: outwardIssue -> inwardIssue */
+/** Directed pair key: `outward` <type.outward> `inward`, e.g. "A blocks B". */
 const pairKey = (outward: string, inward: string) => `${norm(outward)}=>${norm(inward)}`;
+
+type LinkType = { id?: string; name?: string; inward?: string; outward?: string };
+
+/**
+ * Resolve a link type by its name, its name without the numeric prefix some sites use
+ * ("3. Blocks" -> "blocks"), or its inward or outward description. Case-insensitive.
+ */
+export function findLinkType<T extends LinkType>(available: T[], linkType: string): T | undefined {
+    const needle = linkType.trim().toLowerCase();
+    const stripPrefix = (s: string) => s.replace(/^\d+\.\s*/, "").toLowerCase();
+    return available.find(
+        (lt) =>
+            lt.name?.toLowerCase() === needle ||
+            stripPrefix(lt.name ?? "") === needle ||
+            lt.inward?.toLowerCase() === needle ||
+            lt.outward?.toLowerCase() === needle
+    );
+}
+
+export function listLinkTypes(available: LinkType[]): string {
+    return available.map((lt) => `  - "${lt.name}" (inward: "${lt.inward}", outward: "${lt.outward}")`).join("\n");
+}
+
+/**
+ * How Jira's link fields map to the relation the UI shows (checked against the Jira UI):
+ *  - In a link itself (the create request body and GET /issueLink/{id}), `inwardIssue` is the
+ *    issue the *outward* description is about: { inwardIssue: A, outwardIssue: B } on
+ *    "Blocks" is shown as "A blocks B".
+ *  - In an issue's own `issuelinks`, only the other end appears, under that end's field:
+ *    on issue X, `outwardIssue: Y` reads "X <outward> Y" and `inwardIssue: Y` reads
+ *    "X <inward> Y".
+ */
+export function linkRelationFor(link: { inwardIssue?: unknown; outwardIssue?: unknown; type?: LinkType }): string | undefined {
+    return link.outwardIssue ? link.type?.outward : link.type?.inward;
+}
 
 export async function linkIssuesHandler(
     jira: Version3Client,
@@ -52,23 +87,13 @@ export async function linkIssuesHandler(
 
         const linkTypesResponse = await jira.issueLinkTypes.getIssueLinkTypes();
         const available = linkTypesResponse.issueLinkTypes ?? [];
-        const needle = linkType.toLowerCase();
-        // Strip leading numeric prefix (e.g. "1. Relates" -> "relates") for flexible matching
-        const stripPrefix = (s: string) => s.replace(/^\d+\.\s*/, "").toLowerCase();
-        const matched = available.find(
-            (lt) =>
-                lt.name?.toLowerCase() === needle ||
-                stripPrefix(lt.name ?? "") === needle ||
-                lt.inward?.toLowerCase() === needle ||
-                lt.outward?.toLowerCase() === needle
-        );
+        const matched = findLinkType(available, linkType);
 
         if (!matched) {
-            const list = available
-                .map((lt) => `  - "${lt.name}" (inward: "${lt.inward}", outward: "${lt.outward}")`)
-                .join("\n");
-            return respond(`Link type "${linkType}" not found. Use the exact name shown in quotes below as the linkType value:\n${list}`);
+            return respond(`Link type "${linkType}" not found. Use the exact name shown in quotes below as the linkType value:\n${listLinkTypes(available)}`);
         }
+        /** "A blocks B" */
+        const says = (outward: string, inward: string) => `${outward} ${matched.outward} ${inward}`;
 
         // Symmetry is derived from Jira's own definition of the link type: a type whose
         // inward and outward descriptions are identical (e.g. "relates to"/"relates to")
@@ -79,7 +104,7 @@ export async function linkIssuesHandler(
         const sameType = (t: { id?: string; name?: string } | undefined) =>
             t?.id && matched.id ? t.id === matched.id : (t?.name ?? "").toLowerCase() === (matched.name ?? "").toLowerCase();
 
-        // Directed pairs (outwardIssue => inwardIssue) of this link type that already exist,
+        // Directed pairs ("A blocks B") of this link type that already exist,
         // for the issues we are about to link from. Populated lazily, one fetch per issue.
         const existing = new Set<string>();
         const loaded = new Set<string>();
@@ -90,11 +115,10 @@ export async function linkIssuesHandler(
             const self = issue.key ?? issueKey;
             for (const link of issue.fields?.issuelinks ?? []) {
                 if (!sameType(link.type)) continue;
-                // Jira returns only the *other* end of the link, under the field naming that
-                // issue's role. So `inwardIssue: Y` on issue X means the link is
-                // (outwardIssue: X, inwardIssue: Y), and `outwardIssue: Y` means (Y, X).
-                if (link.inwardIssue?.key) existing.add(pairKey(self, link.inwardIssue.key));
-                if (link.outwardIssue?.key) existing.add(pairKey(link.outwardIssue.key, self));
+                // See linkRelationFor: on issue X, `outwardIssue: Y` reads "X blocks Y" and
+                // `inwardIssue: Y` reads "X is blocked by Y", i.e. "Y blocks X".
+                if (link.outwardIssue?.key) existing.add(pairKey(self, link.outwardIssue.key));
+                if (link.inwardIssue?.key) existing.add(pairKey(link.inwardIssue.key, self));
             }
             loaded.add(norm(issueKey));
             loaded.add(norm(self));
@@ -105,11 +129,11 @@ export async function linkIssuesHandler(
         const conflicts: string[] = [];
         const errors: string[] = [];
 
-        // Create cross-product links: every outward -> every inward (outwardIssue, inwardIssue)
+        // Create cross-product links: every outward key <outward description> every inward key
         for (const outward of outwardIssueKeys) {
             for (const inward of inwardIssueKeys) {
                 if (norm(outward) === norm(inward)) {
-                    errors.push(`${outward} -> ${inward}: cannot link an issue to itself`);
+                    errors.push(`${says(outward, inward)}: cannot link an issue to itself`);
                     continue;
                 }
                 try {
@@ -119,18 +143,18 @@ export async function linkIssuesHandler(
                     const reverse = pairKey(inward, outward);
 
                     if (existing.has(forward)) {
-                        skipped.push(`${outward} -> ${inward} (already linked)`);
+                        skipped.push(`${says(outward, inward)} (already linked)`);
                         continue;
                     }
                     if (existing.has(reverse)) {
                         if (symmetric) {
                             // Same relation, recorded in the other direction: nothing to do.
-                            skipped.push(`${outward} -> ${inward} (already linked as ${inward} -> ${outward}; link type is symmetric)`);
+                            skipped.push(`${says(outward, inward)} (already linked as ${says(inward, outward)}; link type is symmetric)`);
                             continue;
                         }
                         if (!allowReciprocal) {
                             conflicts.push(
-                                `${outward} -> ${inward}: opposite link already exists (${inward} "${matched.outward}" ${outward}). ` +
+                                `${says(outward, inward)}: opposite link already exists (${says(inward, outward)}). ` +
                                 `Creating this link would make the issues "${matched.outward}" each other. ` +
                                 `Remove the existing link first, or pass allowReciprocal: true if this is intended.`
                             );
@@ -138,15 +162,18 @@ export async function linkIssuesHandler(
                         }
                     }
 
+                    // The request body names the ends the other way round from the
+                    // descriptions: `inwardIssue` is the issue the outward text is about
+                    // (see linkRelationFor), so the blocker goes in `inwardIssue`.
                     await jira.issueLinks.linkIssues({
                         type: { name: matched.name! },
-                        inwardIssue: { key: inward },
-                        outwardIssue: { key: outward }
+                        inwardIssue: { key: outward },
+                        outwardIssue: { key: inward }
                     });
                     existing.add(forward);
-                    created.push(`${outward} -> ${inward}`);
+                    created.push(says(outward, inward));
                 } catch (e: any) {
-                    errors.push(`${outward} -> ${inward}: ${e?.message ?? String(e)}`);
+                    errors.push(`${says(outward, inward)}: ${e?.message ?? String(e)}`);
                 }
             }
         }

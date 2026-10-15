@@ -1,5 +1,6 @@
 import { convertADFToMarkdown, formatFieldValue, formatSection, hasMeaningfulValue } from "../shared/helpers.js";
 import { contentVersion } from "../shared/contentVersion.js";
+import { linkRelationFor } from "./linkTickets.js";
 function formatFileSize(bytes) {
     if (bytes < 1024)
         return `${bytes} B`;
@@ -93,12 +94,11 @@ export async function getTicketDetailsHandler(jira, customFieldsMap, args) {
     const description = convertADFToMarkdown(issue.fields.description);
     const linkedIssues = (issue.fields.issuelinks || [])
         .map((link) => {
-        // Jira returns only the other end of the link, under the field naming that issue's
-        // role: `inwardIssue` present means this issue is the outward side of the link.
+        // Phrased from this issue's side, as the Jira UI shows it (e.g. "blocks EDU-2").
         const relatedIssue = link.inwardIssue || link.outwardIssue;
         if (!relatedIssue)
             return null;
-        const relation = (link.inwardIssue ? link.type?.outward : link.type?.inward) || "is linked to";
+        const relation = linkRelationFor(link) || "is linked to";
         const linkType = link.type?.name ? ` (type: "${link.type.name}")` : "";
         return `${relation} ${relatedIssue.key} ${relatedIssue.fields?.summary || "No summary"} [${relatedIssue.fields?.issuetype?.name || "Unknown type"}, ${relatedIssue.fields?.status?.name || "Unknown status"}]${linkType}`;
     })

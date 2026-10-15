@@ -1,10 +1,11 @@
 import { Version3Client } from "jira.js";
 import type { McpResponse } from "../utils.js";
 import { respond, validateArray, withJiraError } from "../utils.js";
+import { findLinkType, linkRelationFor, listLinkTypes } from "./linkTickets.js";
 
 export const unlinkIssuesDefinition = {
   name: "unlink-issues",
-  description: "Remove links between issues. Removes all 'relates to' links between the specified issue sets.",
+  description: "Remove links between issues, in either direction. Without targetKeys, removes the issues' links to any issue; without linkType, links of every type.",
   inputSchema: {
     type: "object",
     properties: {
@@ -20,7 +21,7 @@ export const unlinkIssuesDefinition = {
       },
       linkType: {
         type: "string",
-        description: "Link type name to filter (e.g., 'Relates', 'Blocks'). If omitted, removes all link types."
+        description: "Only remove links of this type. Matched like link-issues does: the name ('Blocks' or '3. Blocks'), or its inward or outward description ('is blocked by'). If omitted, removes all link types."
       }
     },
     required: ["issueKeys"]
@@ -39,6 +40,21 @@ export async function unlinkIssuesHandler(
   const targetSet = targetKeys ? new Set(targetKeys) : null;
 
   return withJiraError(async () => {
+    let matched: { id?: string; name?: string } | undefined;
+    if (linkType) {
+      const available = (await jira.issueLinkTypes.getIssueLinkTypes()).issueLinkTypes ?? [];
+      matched = findLinkType(available, linkType);
+      if (!matched) {
+        const response = respond(
+          `Link type "${linkType}" not found. Use the exact name shown in quotes below as the linkType value:\n${listLinkTypes(available)}`
+        );
+        response.isError = true;
+        return response;
+      }
+    }
+    const sameType = (t: { id?: string; name?: string } | undefined) =>
+      t?.id && matched?.id ? t.id === matched.id : (t?.name ?? "").toLowerCase() === (matched?.name ?? "").toLowerCase();
+
     const results: string[] = [];
     const errors: string[] = [];
 
@@ -54,7 +70,7 @@ export async function unlinkIssuesHandler(
 
         for (const link of links) {
           // Filter by link type if specified
-          if (linkType && link.type?.name?.toLowerCase() !== linkType.toLowerCase()) continue;
+          if (matched && !sameType(link.type)) continue;
 
           // Get the linked issue key (could be inward or outward)
           const linkedKey = link.inwardIssue?.key || link.outwardIssue?.key;
@@ -67,7 +83,8 @@ export async function unlinkIssuesHandler(
           if (link.id) {
             try {
               await jira.issueLinks.deleteIssueLink({ linkId: link.id });
-              results.push(`${issueKey} <-> ${linkedKey} [${link.type?.name}, id:${link.id}]`);
+              const relation = linkRelationFor(link) ?? "linked to";
+              results.push(`${issueKey} ${relation} ${linkedKey} [${link.type?.name}, id:${link.id}]`);
             } catch (e: any) {
               errors.push(`${issueKey} <-> ${linkedKey}: ${e?.message ?? String(e)}`);
             }
@@ -78,7 +95,7 @@ export async function unlinkIssuesHandler(
       }
     }
 
-    let msg = linkType ? `Link type filter: "${linkType}"\n` : "All link types\n";
+    let msg = matched ? `Link type filter: "${matched.name}"\n` : "All link types\n";
     if (results.length > 0) {
       msg += `Removed ${results.length} links:\n` + results.join("\n");
     } else if (errors.length === 0) {
