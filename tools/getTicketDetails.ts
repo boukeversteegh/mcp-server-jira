@@ -108,7 +108,7 @@ export async function getTicketDetailsHandler(
 
   const linkedIssues = (issue.fields.issuelinks || [])
     .map((link: any) => {
-      // Phrased from this issue's side, as the Jira UI shows it (e.g. "blocks EDU-2").
+      // Phrased from this issue's side, as the Jira UI shows it (e.g. "blocks PROJ-2").
       const relatedIssue = link.inwardIssue || link.outwardIssue;
       if (!relatedIssue) return null;
       const relation = linkRelationFor(link) || "is linked to";

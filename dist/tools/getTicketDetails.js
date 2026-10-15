@@ -94,7 +94,7 @@ export async function getTicketDetailsHandler(jira, customFieldsMap, args) {
     const description = convertADFToMarkdown(issue.fields.description);
     const linkedIssues = (issue.fields.issuelinks || [])
         .map((link) => {
-        // Phrased from this issue's side, as the Jira UI shows it (e.g. "blocks EDU-2").
+        // Phrased from this issue's side, as the Jira UI shows it (e.g. "blocks PROJ-2").
         const relatedIssue = link.inwardIssue || link.outwardIssue;
         if (!relatedIssue)
             return null;
